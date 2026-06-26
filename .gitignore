@@ -1,0 +1,17 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+.uv-cache/
+
+# Local assistant/tooling state
+.claude/settings.local.json
+
+# Large or non-redistributable research artifacts
+data/raw/
+data/processed/
+data/splits/
+results/
