@@ -1,0 +1,4 @@
+huggingface_hub>=0.26
+python-dotenv>=1.0
+datasets>=3.0
+Pillow

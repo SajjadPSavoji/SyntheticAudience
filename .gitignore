@@ -11,7 +11,6 @@ __pycache__/
 .claude/settings.local.json
 
 # Large or non-redistributable research artifacts
-data/raw/
-data/processed/
-data/splits/
+# The whole data/ folder is fetched from Hugging Face, never committed to git.
+data/
 results/
