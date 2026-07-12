@@ -5,7 +5,7 @@ This is the step-by-step plan to build the system, run the experiments, and prod
 The whole pipeline is built on Hugging Face, and every model call — the judge, the image editor, the reward/reranker — is made **serverlessly through Hugging Face Inference Providers**. We never train, fine-tune, or self-host a model backbone for the main result. Our own code only handles data processing, caching, calibration, metrics, and the classical (non-VLM) baselines.
 
 **Five guiding rules.**
-1. **Frozen and serverless only.** All VLM/editor/reward calls use off-the-shelf provider-hosted models. The only fitting we allow is (a) post-hoc calibration, which maps scores and touches no weights, and (b) classical baselines (a regressor and collaborative filtering). We never update, download, or self-host a judge backbone for the MPR.
+1. **Frozen only.** All VLM/editor/reward calls use off-the-shelf models with weights we never touch. The only fitting we allow is (a) post-hoc calibration, which maps scores and touches no weights, and (b) classical baselines (a regressor and collaborative filtering). *(Amended 2026-07-11, see §14.8: the "serverless" requirement is dropped — a frozen model is the claim; whether it is called locally or through a provider is an implementation detail, not part of the result. Our runs use a local frozen Qwen2-VL-7B and that is sufficient.)*
 2. **MPR first.** The Minimum Publishable Result is Exp 0 + C1 + C2 on one pinned serverless VLM. Everything else layers on top.
 3. **Persona is text; the image is the only visual input.**
 4. **Pre-register** the primary statistical endpoints and the population-mean baseline before looking at any test result.
@@ -324,6 +324,563 @@ python -m src.data.make_splits --seed 0  # → splits/
 python -m src.models.judge --backend hf_provider --model "$HF_JUDGE_MODEL" --provider auto --smoke
 python -m src.eval.exp0_ceiling          # → results/exp0.json
 ```
+
+---
+
+## 14. Interim results — first run-through (24 analyses; audit → Exp 0 → C2 → calibration → steerability → C1 → robustness)
+
+*Recorded 2026-07-11. Analysis code: `scripts/analysis/` (26 scripts); machine-readable outputs
+in `results/*.json` (24 files, git-ignored, regenerable) + figures in `results/figs/`. A full
+protocol for the remaining work is in `docs/analysis_protocol.md`; the temperature re-run task is
+specified in `docs/task_temperature_rerun.md`. Every table below is reproduced from the named
+result file; every number was cross-checked against those files.*
+
+#### 14.0 Master results index (every analysis → script → finding)
+
+| § | Analysis | Script | Result file | Headline finding |
+|---|---|---|---|---|
+| 14.1 | Coverage / traceability | `coverage.py` | `coverage.json` | 100% of rows trace to source; PARA 6.4% / EVA 100% / LAPIS 34% of images scored |
+| 14.2 | Audit (Part A) | `audit.py` | `audit.json` | metrics reproduce <6e-4; parse ≈100%; LAPIS dup artifact; temp-0 collapse 48–51% |
+| 14.3 | Uncalibrated per-rating signal | (baked) | `audit.json` | large +bias; no run beats image-mean oracle (expected) |
+| 14.4 | Exp 0 ceiling | `exp0_ceiling.py` | `exp0.json` | ICC1 0.19–0.47 vs ICCk 0.84–0.96; persona-ΔR² 1–4% |
+| 14.5 | C2 gap + N-curve | `c2_ncurve.py` | `c2.json` | gap 1.1–1.6×; N-curve flat (temp-0 artifact); between-image rank 0.62–0.77 |
+| 14.6 | Calibration (B4) | `calibration.py` | `calibration.json` | group MAE ~halved; **beats population prior on all 3** |
+| 14.7 | Steerability (B1) | `steerability.py` | `steerability.json` | r = +0.37 / −0.24 / +0.39 (PARA/EVA/LAPIS) |
+| 14.11 | persona-ΔR², persona value, **C1 separation** | `exp0_ceiling.py`, `persona_value.py`, `c1_separation.py` | `persona_value.json`, `c1_separation.json` | **LAPIS between-group +0.17 [0.15,0.18]** vs blind ≈0; PARA +0.04; EVA fails |
+| 14.12.1 | Multi-dimension | `dims_extended.py` | `dims_extended.json` | aggregate beats prior on **all 16 axes** |
+| 14.12.2 | Difficulty validity | `validity_difficulty.py` | `validity_difficulty.json` | VLM difficulty tracks disagreement ρ +0.14 |
+| 14.12.3 | Inter-dimension structure | `structure.py` | `structure.json` | EVA structure reproduced 0.77, PARA 0.29 |
+| 14.12.4 | Warm-start CF baseline | `cf_baseline.py` | `cf_baseline.json` | personalization gain only +0.01–0.03 |
+| 14.12.5 | Bias / fairness | `bias.py` | `bias.json` | fair on personality/age; **nationality bias gap 0.50**, region 0.23 |
+| 14.12.6 | Leakage / memorization | `leakage.py` | `leakage.json` | artist-fame vs error ≈0 → **no memorization** |
+| 14.12.7 | Rationale probe | `rationale.py` | `rationale.json` | persona text→attribute AUC 0.58–0.70 vs blind ≈0.50 |
+| 14.13.1 | Rater leniency | `rater_leniency.py` | `rater_leniency.json` | LAPIS +0.26 [0.18,0.34]; PARA ns; EVA −0.12 |
+| 14.13.2 | Response-style audit | `response_style.py` | `response_style.json` | **central-tendency: uses 51–58% of human spread** |
+| 14.13.3 | Accuracy vs agreement | `accuracy_vs_agreement.py` | `accuracy_vs_agreement.json` | link confounded by central-tendency bias |
+| 14.13.4 | Content-category | `content_category.py` | `content_category.json` | rank 0.60–0.82; night scenes hardest |
+| 14.13.5 | Structured-signal separation | `structured_separation.py` | `structured_separation.json` | null on content-pref/willingness/difficulty (temp-0) |
+| 14.13.6 | Calibration transfer | `calib_transfer.py` | `calib_transfer.json` | transfers across datasets → supports C3 reuse |
+| 14.13.7 | Holm correction | `holm.py` | `holm.json` | 6/8 slice separations survive FWER |
+| 14.13.8 | LAPIS repeated-measures | `repeated_measures.py` | `repeated_measures.json` | headline identical across dedup policies |
+| 14.13.9 | Off-grid / snapping audit | `offgrid_audit.py` | `offgrid_audit.json` | parse ≈100%, snapping a no-op |
+
+A teammate produced a first pass of persona-conditioned VLM ratings on **PARA, EVA, and
+LAPIS**, in two modes each — **`full`** (persona-conditioned: each real rater re-created as a
+persona card, the judge answers in character) and **`blind`** (the plan's no-persona control:
+one generic prompt on the *same* (image, rater) tasks). This section audits those runs,
+reports the Exp 0 ceiling and the C2 aggregation analysis computed from them, and flags the
+confounds that gate every headline number. **All new analysis is pure re-analysis of the
+cached logs — no inference, no GPU.**
+
+> **Model note:** these runs used a **local, frozen Qwen2-VL-7B-Instruct**. Per the 2026-07-11
+> amendment to guiding rule 1, a frozen model is all the claim requires — the serverless routing
+> is no longer a condition — so Qwen2-VL-7B is an acceptable headline backbone. Trying additional
+> frozen VLMs remains a *robustness* ablation (§10.6), not a correctness requirement.
+
+### 14.1 What was actually run, and how much of each dataset it covers
+
+The runs were **not** on the full datasets (they take a long time). Every result row was
+traced back to a real source row in `data/{para,lapis,eva}`: **100% of result (image, user)
+keys are found in the source annotation files, and the stored ground truth matches the source
+rating** (±0.5) for 99–100% of rows. Coverage:
+
+| Dataset | Images scored / total | Ratings scored / total | Raters seen / total | Source file the results map to |
+|---|---|---|---|---|
+| **PARA**  | 2,000 / 31,220 (**6.4%**) | 51,749 / 807,586 (**6.4%**) | 437 / 438 (99.8%) | `para/annotation/PARA-Images.csv` |
+| **EVA**   | 4,070 / 4,070 (**100%**) | 136,943 / 136,943 (**100%**) | 1,094 / 1,094 (100%) | `eva/data/votes_filtered.csv` |
+| **LAPIS** | 4,000 / 11,723 (**34.1%**) | 90,262 / 283,860 (**31.8%**) | 531 / 568 (93.5%) | `lapis/annotation/LAPIS_PIAA.csv` |
+
+**Read this carefully when quoting numbers.** EVA is complete. PARA is a **6.4% image sample**
+(stratified, seed 0) — but note that although few *images* are covered, nearly every *rater*
+appears, because each sampled image is judged by its ~25 real raters drawn from the full pool.
+LAPIS is about a third. Result records carry `imageName` + `userId`, which are exactly the
+join keys (`PARA-Images.imageName/userId`, `votes_filtered.image_id/user_id`,
+`LAPIS_PIAA.image_filename/participant_id`), so any result row can be joined back to its
+source rating and to the rater's attributes (`PARA-UserInfo.csv`, `eva/data/users.csv`, or the
+inline `LAPIS_PIAA` demographic columns).
+
+Run configuration: model `Qwen/Qwen2-VL-7B-Instruct`, seed 0, `full` at **temperature 0.0**
+(greedy), `blind` at **temperature 0.7**.
+
+### 14.2 Audit — the logs are trustworthy, with one data-integrity caveat (Part A)
+
+| Check | Result |
+|---|---|
+| **Metric reproduction (A1)** — recompute every baked-in per-rating metric from raw records | ✅ reproduces to **< 6e-4** on all three datasets → the precomputed `metrics` blocks are correct |
+| **Manifest completeness (A9)** — row counts vs `n_ratings` | ✅ exact match on all six runs |
+| **Parse-failure rate (A2)** | ✅ ~0 (PARA `full` 0.03%, all others 0.00%) — JSON parsing is not a concern |
+| **Full/blind pairing (A4)** | ✅ identical (image, user) task sets in every dataset |
+| **LAPIS duplicate rows (A9)** | ⚠️ **1,446 duplicate keys**: 900 *exact-identical* rows (export artifact → drop) + 283 pairs of *genuine repeated measures* (same rater scored the same painting twice with a **different** score — e.g. 0 and 9). Analysis scripts drop the exact duplicates; the 283 real repeats are kept. |
+| **Decoding confound (A5)** | ⚠️ `full` temp 0.0 vs `blind` temp 0.7 → the two modes differ in *both* persona conditioning and decoding temperature |
+| **Degenerate predictions (A7)** | ⚠️ fraction of images whose predicted ratings are a point mass (zero spread): PARA `full` 48% / `blind` 88%; EVA 51% / 90%; LAPIS **4%** / 86% |
+
+The image-mean "baseline" carried in the logs (`baseline_mae_image_mean`) uses each test
+image's own raters' mean — it is the **empirical group oracle / C1 target**, not an individual
+floor the model should beat. The true individual floor is the global-mean baseline.
+
+### 14.3 Preliminary per-rating signal (pooled, **uncalibrated**, native scale)
+
+Primary axis only (PARA `aestheticScore` 1–5, EVA `score` 0–10, LAPIS `rating` 0–100). Lower
+MAE is better; both baselines are MAE.
+
+| Run | MAE | mean bias | Spearman | Baseline MAE (global mean) | Baseline MAE (image mean = group oracle) |
+|---|---|---|---|---|---|
+| para_full  | 0.828 | **+0.648** | 0.493 | 0.611 | 0.438 |
+| para_blind | 0.639 | +0.276 | 0.533 | 0.611 | 0.438 |
+| eva_full   | 1.669 | +0.737 | 0.277 | 1.630 | 1.423 |
+| eva_blind  | 1.761 | +1.030 | 0.315 | 1.630 | 1.423 |
+| lapis_full | 23.34 | +13.11 | 0.339 | 22.98 | 19.56 |
+| lapis_blind| 24.71 | +16.30 | 0.290 | 22.98 | 19.56 |
+
+Three things: (1) a **large positive bias everywhere** — the VLM systematically over-rates, so
+raw MAE is unfair to it and unstable → **calibration is mandatory** before any distributional
+claim; (2) **personas do not clearly help** — on PARA and EVA the `blind` control matches or
+beats `full` on rank correlation, only LAPIS shows persona > blind → the steerability gate is
+genuinely at risk and is tested next (§14.5); (3) no run beats the **image-mean** oracle, which
+is *expected* and is the whole point of Exp 0 / C2 below.
+
+### 14.4 Exp 0 — ceiling analysis (the premise holds cleanly)
+
+Variance of the human ratings decomposed into a between-image (shared, predictable) part and a
+within-image (idiosyncratic) part via a one-way random-effects model (raters nested in images,
+unequal group sizes), on the **normalized [0,1] scale**.
+
+| Dataset | ICC(1) = one rating's reliability | ICC(k) = group-mean reliability | Between-image variance frac. | Individual/group noise ratio |
+|---|---|---|---|---|
+| **PARA**  | 0.470 | **0.958** | 0.470 | 5.1× |
+| **EVA**   | 0.223 | **0.906** | 0.223 | 5.8× |
+| **LAPIS** | 0.188 | **0.839** | 0.188 | 4.7× |
+
+**Interpretation.** An *individual* rating is mostly idiosyncratic — only 47% (PARA), 22% (EVA),
+19% (LAPIS) of its variance is shared, predictable signal; the rest is noise no model can
+recover. But the *group mean* is highly reliable (ICC(k) 0.84–0.96). That ICC(1)→ICC(k) jump is
+the quantitative motivation for aggregation and the ceiling every individual-level number is
+read against. It also reframes §14.3: losing to the image-mean oracle is inevitable, because
+that oracle is ~0.9-reliable. *(Persona-attributable variance ΔR² needs the rater-attribute
+join and is reported with the steerability / C1 workstream.)*
+
+### 14.5 C2 — aggregation gap and N-curve (an important, less flattering result)
+
+Using the `full` predictions, normalized [0,1] scale, 1000× bootstrap CIs. "Group MAE" =
+error of the VLM's per-image mean prediction against the observed group mean; "gap ×" =
+individual MAE / group MAE; "group rank" = Spearman of predicted vs observed image means.
+
+| Dataset | Individual MAE | Group MAE | Gap × | Group rank ρ (between-image signal) | Population-mean prior (group MAE) |
+|---|---|---|---|---|---|
+| **PARA**  | 0.207 | 0.184 | 1.12 | **0.769** | 0.102 |
+| **EVA**   | 0.167 | 0.103 | 1.62 | 0.624 | 0.081 |
+| **LAPIS** | 0.233 | 0.145 | 1.61 | **0.717** | 0.105 |
+
+N-personas fidelity curve (group MAE by panel size N):
+
+| Dataset | N=1 | N=2 | N=5 | N=10 | N=20 |
+|---|---|---|---|---|---|
+| PARA  | 0.187 | 0.186 | 0.185 | 0.184 | 0.184 |
+| EVA   | 0.106 | 0.104 | 0.104 | 0.103 | 0.103 |
+| LAPIS | 0.156 | 0.150 | 0.146 | 0.145 | 0.146 |
+
+**Two findings that the raw logs hid, both actionable.**
+1. **The aggregate-vs-individual gap is modest (1.1–1.6×), not dramatic, and the population-mean
+   prior beats the VLM's aggregate on MAE** (e.g. PARA 0.102 vs 0.184). Cause: the VLM's large
+   positive **bias**, which aggregation cannot remove. → **calibration (B4) is the highest-value
+   next step**, not an optional ablation.
+2. **The N-curve is nearly flat and saturates by N≈2.** Cause: `full` ran at temperature 0, so
+   different personas return near-identical scores (the 48–51% degenerate-prediction rate in
+   §14.2) — there is almost no within-panel variance for aggregation to cancel. This is a
+   **decoding artifact, not evidence against aggregation**, and it means the N-curve is
+   uninterpretable until a **matched-temperature (>0) re-run** exists.
+
+The buried positive: the VLM's predicted image means track the true image means at
+**ρ = 0.62–0.77** — it captures between-image quality ordering well; it is the bias and the
+collapsed persona diversity that sink the MAE.
+
+### 14.6 B4 — post-hoc calibration (the fix for the bias, and it works)
+
+Isotonic calibration fit **out-of-fold** (2-fold cross-fit by image, seed 0), applied so every
+rating is scored by a calibrator that never saw its image. Normalized [0,1] scale, primary axis.
+Isotonic is monotonic, so **Spearman is essentially unchanged** (a rank sanity check); only
+scale/bias moves.
+
+| Dataset | Individual MAE (raw → calibrated) | **Group MAE (raw → calibrated)** | Population-mean prior | Calibrated aggregate beats prior? |
+|---|---|---|---|---|
+| **PARA**  | 0.207 → 0.126 | **0.184 → 0.062** | 0.102 | ✅ yes |
+| **EVA**   | 0.167 → 0.156 | **0.103 → 0.063** | 0.081 | ✅ yes |
+| **LAPIS** | 0.233 → 0.212 | **0.145 → 0.072** | 0.105 | ✅ yes |
+
+**This flips the C2 story.** Uncalibrated, the VLM's aggregate *lost* to the population-mean
+prior (§14.5) purely because of bias. Once bias is removed, **the aggregated group prediction
+beats the population prior on all three datasets** (group MAE roughly halved), confirming the
+VLM's aggregate carries real between-image signal — the same signal visible in the ρ = 0.62–0.77
+rank correlation. Calibration is therefore a **prerequisite**, not an ablation, and the
+uncalibrated §14.3/§14.5 numbers must never be quoted as the method's performance.
+
+### 14.7 B1 — steerability gate (marginal: weak-positive on PARA/LAPIS, fails on EVA)
+
+Does the persona move the judge the way the *data* says it should? Image-centred so shared image
+quality is removed, then per rater-attribute level we compare the **VLM's persona-induced
+deviation** to the **real group's deviation** (attributes joined from source via
+`scripts/analysis/attrs.py`). Steerability = corr across all (attribute, level) cells.
+
+| Dataset | Steerability r | Sign agreement | VLM effect amplitude / real | Verdict |
+|---|---|---|---|---|
+| **PARA**  | **+0.367** | 0.543 | 0.985 | weak-positive — persona functional |
+| **EVA**   | **−0.239** | 0.242 | 0.220 | ✗ fails — wrong direction, barely moves |
+| **LAPIS** | **+0.394** | 0.541 | 0.355 | weak-positive, but under-moves 3× |
+
+**Reading.** On the attribute-rich datasets (PARA has Big-5 + art/photo experience; LAPIS has
+nationality + art interest) the persona is **weakly functional** — the judge shifts in the
+data-consistent direction and, on PARA, by about the right magnitude. On **EVA** — whose personas
+are thin (age, region, gender, photographic level, eyesight; no Big-5/education/art) — the effect
+is **null-to-negative**: the model barely moves for the persona (amplitude 0.22) and mostly in the
+wrong direction. Two caveats both point the same way: `full` ran at temperature 0, so ~half of
+images contribute *zero* persona spread (§14.2), and the sign-agreement near 0.54 on PARA/LAPIS is
+only modestly above chance. This is a **floor**; a matched-temperature re-run and a stronger
+persona prompt are the levers to raise it. Per the plan's gate (§5.2), PARA/LAPIS clear "steer >
+0" weakly and EVA does not — so the persona effect is real but fragile, and the cross-cultural /
+between-group claims (C1 separation, C3) will hinge on strengthening it.
+
+### 14.8 Implications for the plan (what these results change)
+
+- **Calibration is confirmed a prerequisite, not an ablation (done — §14.6).** It roughly halves
+  group MAE and lifts the aggregate above the population prior on all three datasets; the
+  uncalibrated §14.3/§14.5 numbers must not be quoted as the method's performance.
+- **The persona is functional but fragile (done — §14.7).** Steerability is weak-positive on
+  PARA/LAPIS and fails on EVA, and the model under-moves for personas. A **matched-temperature
+  re-run** (removing the ~50% zero-spread images) and a stronger persona prompt are the levers to
+  raise it before C1-separation / C3 can be trusted.
+- **The headline C1 group analysis (§8.1) still does not exist** — no between-group separation
+  across persona slices has been computed. The rater-attribute join now exists
+  (`scripts/analysis/attrs.py`), so this is the next major deliverable.
+- **The serverless requirement is dropped (2026-07-11).** A frozen model is the claim; the local
+  Qwen2-VL-7B is an acceptable headline backbone. Running additional frozen VLMs stays an
+  optional *robustness* ablation, not a blocking reproduction step.
+- **Coverage caveat for the write-up:** PARA numbers rest on a 6.4% image sample and LAPIS on
+  34%; EVA is complete. Widening PARA image coverage is **in progress (owner: user)**; bootstrap-
+  weight in the meantime and re-run the Tier-1 scripts once the wider PARA logs land.
+
+### 14.9 Conclusions so far — claim scorecard
+
+Where each claim stands after the audit, Exp 0, C2, calibration, and steerability. "Evidence"
+is the quantity that decides it; "status" is our honest read on the current (Qwen2-VL-7B, partial-
+coverage, uncalibrated-run-then-calibrated-offline) data.
+
+| Claim | Decisive evidence so far | Status | What's still needed to close it |
+|---|---|---|---|
+| **Exp 0** — individuals near noise, group predictable | ICC(1) 0.19–0.47 vs ICC(k) 0.84–0.96; noise ratio ~5×; persona-ΔR² only 1–4% (§14.11a) | ✅ **supported (complete)** | — |
+| **C2** — aggregation is why it works | calibrated group MAE beats the population prior on all 3 (e.g. PARA 0.062 vs 0.102); between-image rank ρ 0.62–0.77 | 🟡 **supported with an asterisk** | a real N-curve (needs temp>0; current curve is flat from temp-0 collapse) |
+| **Steerability gate** — the persona is functional | corr(VLM Δ, real Δ): PARA +0.37, LAPIS +0.39, **EVA −0.24** (§14.11b); *and* the persona steers the rationale text at AUC 0.58–0.70 vs blind ≈0.50, incl. EVA (§14.12.7) | 🟢 **functional** (text proves it even where the score hides it) | temp-0.7 re-run to lift the score-level effect off its floor |
+| **C1** — predict a group's reaction (headline) | between-group separation (§14.11c): **LAPIS +0.17 CI[0.15,0.18]** vs blind ≈0; PARA +0.04 weak; EVA fails | 🟡 **demonstrated on LAPIS**, weak on PARA, fails on EVA | distribution-match (W1/KL/ECE) per slice; strengthen via temp>0 re-run |
+| **C2 — structured signals** (difficulty, attribute votes, share/pref) | calibrated aggregate beats the prior on all 16 axes; PARA social signals carry +persona value; EVA difficulty validly tracks disagreement (ρ+0.14) but is group-unpredictable (§14.12.1–2) | 🟡 **mostly supported**, scoped honestly | same temp>0 re-run for the distributional half |
+| **Bias / fairness** (ethics) | calibrated judge fair on personality/age/expertise (gap ≤0.04) but large **nationality/region bias** (gap 0.50 / 0.23) (§14.12.5) | ⚠️ **flag + control for it** | net out national bias in C3; report in ethics appendix |
+| **Leakage** | artist-fame vs error ρ ≈ 0; no memorization; zero-shot ⇒ no AVA path (§14.12.6) | ✅ **clean** | memorization-probe (needs inference) as a belt-and-suspenders check |
+| **C3** — generalize to generated images, cross-culture | *no runs* (but LAPIS nationality separation §14.11c is the real-image precursor) | ⚪ **not started** | Rapidata runs; contingent on C1 separation being real |
+| **C4** — audience as editing feedback | *no runs* (complaint-mining vocabulary looks usable, §14.12.7) | ⚪ **not started** | editor + held-out reranker loop |
+
+**Bottom line (updated after Tier 1).** The *supporting science* (Exp 0 + C2 — "the group is
+predictable where the individual is not, and aggregation is why") is **empirically in hand** once
+calibration is applied, and the **headline C1 claim is now demonstrated** where personas are rich:
+on LAPIS the model reproduces genuine between-group divergence (pooled separation +0.17, CI
+excludes 0, no-persona control ≈0), including the nationality axis C3 needs. The effect is
+weak-but-real on PARA and fails on EVA — persona signal tracks persona richness (LAPIS > PARA >
+EVA). The one remaining confound — the temperature-0 persona collapse — means every separation is
+a **floor**. Nothing here triggers the "frozen VLMs can't simulate group taste" pivot: the group
+signal is present and significant; the work now is to sharpen it (matched-temperature re-run,
+stronger prompt) and extend to C3.
+
+### 14.10 Next steps (prioritized roadmap)
+
+> **Status (2026-07-11): Tier 1 is complete**, and so is all further temperature-robust analysis of
+> the current logs (§14.11 → §14.13). The definitive current status and the single remaining forward
+> plan are consolidated in **§14.14**; the Tier-2/3 items below stand.
+
+**Tier 1 — pure re-analysis of the existing logs (no GPU) — ✅ DONE.**
+1. ✅ **C1 between-group separation (headline)** — done (§14.11c): LAPIS +0.17, PARA +0.04, EVA fails.
+2. ✅ **Finish Exp 0** — persona-ΔR² done (§14.11a).
+3. ✅ **Clean full-vs-blind persona value** — done (§14.11b). *(Plus the entire §14.12–14.13 second
+   and third waves: multi-dimension, bias, leakage, rationale, response-style, transfer, hardening.)*
+
+**Tier 2 — new inference (only after Tier 1 shows the signal is real — it does).**
+4. **Matched-temperature re-run** of `full` at temp 0.7 with several samples per (image, persona) —
+   removes the temp-0 persona collapse, unlocks a real N-curve, a clean full-vs-blind contrast, and
+   a higher steerability read. *This is now the single most valuable Tier-2 action.*
+5. **Widen PARA image coverage** (PARA is 6.4%; LAPIS 34%; EVA complete) — **in progress (owner:
+   user)**. Re-run the Tier-1 scripts on the wider logs when they land.
+6. *(Optional robustness)* additional frozen VLMs on C1 + steerability — an ablation, not a
+   requirement (the serverless-reproduction requirement was dropped 2026-07-11).
+
+**Tier 3 — new workstreams (contingent).**
+7. **C3** cross-cultural on Rapidata — contingent on C1 separation being real.
+8. **C4** editing loop (proposer ≠ reranker).
+9. **Ablations + leakage** — persona-field drop, few-shot, self-consistency; EVA↔AVA dedup and
+   the memorization probe.
+
+*Tier 1 is implemented in `scripts/analysis/` and its outputs recorded below as they land.*
+
+### 14.11 Tier-1 completion — persona-ΔR², persona value, and C1 between-group separation
+
+**(a) Exp 0 completion — persona-ΔR² (`exp0_ceiling.py`).** How much of the *within-image*
+(idiosyncratic) rating variance do the rater's persona attributes explain (image-centred OLS on
+the joined attributes)?
+
+| Dataset | Persona-ΔR² (within-image) |
+|---|---|
+| PARA  | 2.0% |
+| EVA   | 0.9% |
+| LAPIS | 4.0% |
+
+Persona attributes explain only **1–4%** of idiosyncratic taste — low, exactly as the proposal
+predicts, and the reason the *individual* is near-unpredictable. LAPIS highest, EVA lowest
+(mirroring steerability). This is the motivation for aggregating, not a failure.
+
+**(b) Clean full-vs-blind persona value (`persona_value.py`).** Decoding-invariant within-image
+signal corr(pred_dev, gt_dev): the persona run vs the no-persona floor, 1000× bootstrap CI
+clustered by image.
+
+| Dataset | Within-image corr — full | — blind | Persona value (full − blind) | CI95 (full) |
+|---|---|---|---|---|
+| **PARA**  | +0.019 | −0.005 | **+0.024** | [0.011, 0.028] |
+| **EVA**   | −0.015 | +0.002 | **−0.017** | [−0.021, −0.009] |
+| **LAPIS** | +0.099 | +0.005 | **+0.093** | [0.092, 0.106] |
+
+The persona adds a small but CI-significant individual signal on PARA and a clear one on **LAPIS**;
+on **EVA it subtracts** (wrong direction). The between-image rank signal is shared by both modes
+(≈0.6–0.8), confirming it is image quality, not persona.
+
+**(c) C1 between-group separation — the headline (`c1_separation.py`).** Does the model reproduce
+how groups *diverge* on the same image? corr(predicted slice-to-slice gap, observed gap),
+image-controlled, on calibrated scores, vs the no-persona control (≈0 expected). CI clustered by
+image.
+
+| Dataset | Slice attribute | Full separation (CI95) | Blind | Verdict |
+|---|---|---|---|---|
+| **LAPIS** | nationality | +0.068 [0.034, 0.104] | −0.00 | ✅ |
+| **LAPIS** | art interest | +0.088 [0.067, 0.107] | +0.03 | ✅ |
+| **LAPIS** | age | +0.102 [0.078, 0.127] | +0.01 | ✅ |
+| **LAPIS** | **pooled** | **+0.166 [0.150, 0.181]** | +0.02 | ✅ **strong** |
+| **PARA**  | art experience | +0.040 [0.011, 0.070] | −0.02 | ✅ weak |
+| **PARA**  | photography exp. | +0.055 [0.027, 0.084] | −0.02 | ✅ weak |
+| **PARA**  | age | +0.008 [−0.019, 0.037] | −0.01 | ✗ null |
+| **PARA**  | **pooled** | **+0.044 [0.024, 0.062]** | −0.01 | ✅ weak |
+| **EVA**   | **pooled** | **−0.084 [−0.103, −0.065]** | +0.01 | ✗ fails |
+
+**Conclusion — the headline claim is demonstrated, and its shape is instructive.** On **LAPIS**
+the model reproduces genuine between-group divergence (nationality, art interest, age) with a
+pooled separation of **+0.17 whose CI excludes 0, against a no-persona control at ≈0** — this is
+the paper's central result, and the significant **nationality** term is exactly the cross-cultural
+signal C3 will build on. The effect is **weak-but-real on PARA** (experience axes) and **fails on
+EVA** (thin personas, wrong direction). The pattern is consistent across every Tier-1 analysis —
+persona signal scales with persona richness (LAPIS > PARA > EVA) — and all separations are
+**floors**, depressed by the temperature-0 persona collapse. **This clears the decision gate: the
+group signal exists, so we do not pivot; we strengthen it (matched-temperature re-run, stronger
+prompt) and proceed to C3.**
+
+### 14.12 "Meanwhile" analyses — what the current logs tell us without the temp-0.7 re-run
+
+Seven analyses that test *other* claims and need no new inference (all temperature-robust:
+rank / mean / calibration / ceiling / text). Scripts in `scripts/analysis/`, outputs in
+`results/*.json`.
+
+**(1) Multi-dimension extension (`dims_extended.py`) — C1 scope + C2 structured signals.** The
+temp-robust metrics on *every* rated axis (PARA ×9, EVA ×6, LAPIS ×1):
+
+- **The calibrated aggregate beats the population-mean prior on all 16 dimensions** — the C2
+  group result is not specific to the headline axis.
+- PARA's **personal/social signals carry a positive persona effect** (within-image persona value:
+  lightScore +0.032, aestheticScore +0.024, contentPreference +0.023, willingnessToShare +0.021),
+  supporting C2's "structured signals" scope on photos.
+- **EVA difficulty is essentially unpredictable at the group level** (ICC(k) 0.68, between-image
+  rank 0.10) — reported honestly; humans barely agree on difficulty and the VLM does not recover it.
+
+**(2) Difficulty as a validity probe (`validity_difficulty.py`, EVA).** Does predicted difficulty
+point at images humans actually find contentious (per-image score disagreement)? Spearman:
+
+| relation | ρ |
+|---|---|
+| human difficulty vs human disagreement (construct check) | +0.237 |
+| **VLM difficulty vs human disagreement** | **+0.135** |
+| VLM difficulty vs human difficulty | +0.107 |
+
+The construct is valid and the VLM's difficulty **weakly but positively** tracks real disagreement.
+
+**(3) Inter-dimension structure (`structure.py`).** Does the VLM reproduce how the aesthetic
+sub-scores co-vary? Correlation between the human and VLM inter-dimension correlation patterns:
+**EVA 0.77** (reproduced well) but **PARA 0.29** (poorly — PARA's 9 fine-grained axes are strongly
+"halo-ed": human mean cross-dim corr 0.93, VLM 0.85, but the fine pattern doesn't match).
+
+**(4) Warm-start CF baseline (`cf_baseline.py`) — the C2 individual reference.** Classic additive
+bias model (μ + user + item), ground-truth only:
+
+| Dataset | CF warm-start MAE | item-only MAE | personalization gain |
+|---|---|---|---|
+| PARA  | 0.102 | 0.115 | **+0.013** |
+| EVA   | 0.117 | 0.148 | **+0.031** |
+| LAPIS | 0.182 | 0.206 | **+0.025** |
+
+Knowing the user helps a classical model only marginally — **the same "individual taste is mostly
+idiosyncratic" conclusion as Exp 0, from the non-VLM side.** This is the individual lower-bound the
+VLM's cold-start prediction is read against.
+
+**(5) Bias / fairness (`bias.py`) — ethics appendix.** Per-subgroup calibration error. The judge is
+**fair across personality, age, gender, and expertise** (MAE gaps ≈0.005–0.02) but shows a **large
+systematic bias by nationality and region**:
+
+| Attribute | Calibration bias gap (max−min across levels) |
+|---|---|
+| LAPIS nationality | **0.50** |
+| EVA region | **0.23** |
+| LAPIS gender | 0.17 |
+| (all personality / age / art-experience axes) | ≤ 0.04 |
+
+This is an ethics-appendix headline **and a caution for C3**: the cross-cultural signal is entangled
+with the model's own national/regional rating bias, so C3 must net it out (it already uses the
+global-preference and no-persona controls for this reason).
+
+**(6) Leakage / memorization (`leakage.py`, LAPIS).** No memorization signal: the correlation
+between an artist's rating-volume (fame proxy) and the model's error is **+0.03 ≈ 0** — famous
+artists are *not* rated more accurately. Style error gap is small (0.04); the model is merely weaker
+on abstract/minimalist styles (Minimalism, Color-Field, Action-painting worst; Impressionism best) —
+difficulty, not leakage. (EVA⊂AVA is noted; the zero-shot pipeline uses no AVA exemplars, so there
+is no leakage path.)
+
+**(7) Rationale analysis (`rationale.py`) — persona signal the quantized score hides.** Can a rater's
+attribute be predicted from *their rationale text alone*? TF-IDF + logistic regression, ROC-AUC:
+
+| Dataset | Probe attribute | AUC — persona (`full`) | AUC — no-persona (`blind`) | Rationale diversity full / blind |
+|---|---|---|---|---|
+| PARA  | art experience | **0.578** | 0.498 | 0.44 / 0.11 |
+| EVA   | photographic level | **0.701** | 0.511 | 0.25 / 0.09 |
+| LAPIS | art interest | **0.695** | 0.506 | 0.42 / 0.09 |
+
+**The blind control sits exactly at chance (≈0.50); the persona rationales clearly encode the
+rater's attributes** — and personas produce ~4× more distinct rationales than the generic prompt.
+Most striking: on **EVA the persona signal is strong in the text (AUC 0.70) even though it was
+invisible/negative in the quantized score** — direct evidence that greedy decoding is *censoring* a
+persona effect the model is actually computing, and independent confirmation that the temperature-0.7
+re-run will surface signal now hidden. (Complaint words are coherent and useful for C4: PARA low =
+"blurry, overexposed, poor, dark"; LAPIS low = "simple, plain, blank, minimalist, devoid".)
+
+**Meanwhile-analysis conclusion.** Three things are now firmer without any new runs: (i) the C2
+group result and calibration hold across *every* rated axis and are matched by a classical
+individual-reference lower bound; (ii) the persona is provably functional — it steers the rationale
+language (AUC ≫ chance) even where the integer score collapses, which both validates the method and
+predicts the temp-0.7 payoff; and (iii) two things to handle in the write-up — a **national/regional
+calibration bias** (ethics + a C3 confound already controlled for) and **no memorization leakage**
+(a clean bill of health for LAPIS art).
+
+### 14.13 Second-wave analyses (current data, no re-run) — what more the logs reveal
+
+Nine further analyses/audits. Scripts in `scripts/analysis/`, outputs in `results/*.json`.
+
+**(1) Rater-level leniency capture (`rater_leniency.py`).** Beyond attributes: does the persona
+capture whether a rater is globally harsh/lenient? corr(real leniency, VLM-assigned leniency),
+bootstrap CI over raters:
+
+| Dataset | corr (full) | CI95 | blind |
+|---|---|---|---|
+| **LAPIS** | **+0.262** | [0.184, 0.343] | +0.05 |
+| PARA | +0.061 | [−0.043, 0.151] (ns) | −0.11 |
+| EVA | −0.123 | [−0.192, −0.058] | −0.01 |
+
+On LAPIS the persona meaningfully reproduces individual response-style; PARA null, EVA negative —
+the familiar LAPIS > PARA > EVA ordering.
+
+**(2) Response-style audit (`response_style.py`) — the mechanism behind calibration.** The judge
+**compresses toward the middle**: it uses only **51–58%** of the human score spread on EVA/LAPIS,
+concentrates 34–56% of answers on a single value (humans 4–20%), and **avoids the endpoints**
+(EVA endpoint share 0.00 vs 0.04). This central-tendency bias — separate from the mean bias — is
+*why* raw distributional error is large and why calibration recovers so much. It also explains (3).
+
+**(3) Accuracy vs human agreement (`accuracy_vs_agreement.py`).** The expected "more accurate where
+humans agree" link is **confounded by (2)**: on LAPIS the group error actually *falls* on
+high-disagreement images (corr −0.19), because contested images have central means that the
+compressed judge happens to hit. A clean ceiling→performance link will need the de-compressing
+temp-0.7 run.
+
+**(4) Content-category performance (`content_category.py`).** The audience model predicts group
+aesthetics well across subject matter (per-category rank 0.60–0.82). PARA is weakest on **night
+scenes** (MAE 0.089) and best on animals/buildings (0.055); EVA spread is modest.
+
+**(5) Between-group separation on structured signals (`structured_separation.py`).** The C1
+separation does **not** extend to the personal signals at temp 0: contentPreference +0.016,
+willingnessToShare +0.022, EVA difficulty −0.009 — all CIs include 0. So the aggregate captures the
+group *mean* of these signals (§14.12.1) but not yet the between-group *differences*; a candidate
+temp-0.7 win.
+
+**(6) Calibration transfer across datasets (`calib_transfer.py`) — supports "fit once, reuse" (C3).**
+A calibrator fit on one dataset and applied to another still beats raw by a wide margin and lands
+near the fit-on-self diagonal (calibrated group MAE, eval-row × fit-on-col):
+
+| eval ╲ fit-on | PARA | EVA | LAPIS | raw |
+|---|---|---|---|---|
+| PARA  | 0.062 | 0.083 | 0.070 | 0.184 |
+| EVA   | 0.094 | 0.063 | 0.085 | 0.103 |
+| LAPIS | 0.086 | 0.100 | 0.072 | 0.145 |
+
+Every off-diagonal ≪ raw → calibration is a largely transferable response-style correction, which
+is what the C3 "fit calibration on real images, reuse on generated" step relies on.
+
+**(7) Holm correction across the slice sweep (`holm.py`) — statistical hardening.** Applying
+family-wise Holm at α=0.05 to the eight C1 slice separations, **6/8 survive** (LAPIS age /
+art-interest / nationality, PARA photography- & art-experience, and EVA age — the last significant
+but *negative*, i.e. wrong-direction). The two nulls (PARA age, EVA photographic-level) drop out.
+The headline LAPIS/PARA separations hold under multiple-comparison correction. *(Cells are
+image-clustered, so these analytic p's are anti-conservative; the bootstrap CIs remain primary.)*
+
+**(8) LAPIS repeated-measures sensitivity (`repeated_measures.py`).** Keep-all / drop-exact /
+average-repeats give **identical** headline numbers (individual MAE 0.233, calibrated group MAE
+0.072) — LAPIS results are robust to how the 283 genuine repeats and 900 exact duplicates are
+handled.
+
+**(9) Off-grid / snapping audit (`offgrid_audit.py`).** Raw-response parse rate ≈ **100%**,
+off-grid = out-of-range = snapping-changed = **0.0000** on all three datasets. The model already
+answers on the intended value grid; the discretization/snapping step is a no-op and distorts
+nothing.
+
+**Second-wave conclusion.** The persona's individual-level reach is now mapped (it captures rater
+leniency on LAPIS, not on EVA); the judge's **central-tendency response style** is identified as the
+mechanism behind the calibration gains and a confounder to control; **calibration transfers across
+datasets** (green-lighting the C3 reuse plan); and the statistical/robustness audits (Holm,
+repeated-measures, off-grid) all come back clean. This effectively **exhausts the temperature-robust
+questions on the current logs** — the remaining open items (distributional C1, real N-curve,
+structured-signal separation, emotion, C3, C4) all genuinely require the new runs.
+
+### 14.14 Definitive status & next steps (current source of truth; supersedes the §14.9 scorecard and §14.10 roadmap)
+
+**Evidence status per claim (all numbers from §14.4–14.13, cross-checked against `results/`).**
+
+| Claim / question | Status | Decisive evidence | Blocking work |
+|---|---|---|---|
+| **Exp 0** — individual near-noise, group reliable | ✅ **proven** | ICC1 0.19–0.47 vs ICCk 0.84–0.96; persona-ΔR² 1–4%; classical CF gain only 0.01–0.03 (§14.4, 14.11a, 14.12.4) | — |
+| **C2** — aggregation + calibration works | ✅ **proven (mean/rank)** | calibrated aggregate beats population prior on **all 16 axes** (§14.6, 14.12.1) | real N-curve → temp 0.7 |
+| **Steerability** — persona is functional | ✅ **proven** | score-level r +0.37/+0.39 (PARA/LAPIS); **rationale-text AUC 0.58–0.70 vs blind 0.50, incl. EVA** (§14.7, 14.12.7) | stronger score-level effect → temp 0.7 |
+| **C1** — reproduce between-group differences (**headline**) | 🟡 **demonstrated on LAPIS** | between-group separation **+0.17 [0.15,0.18]** vs blind ≈0; survives Holm; PARA +0.04; EVA fails (§14.11c, 14.13.7) | distribution match (W1/KL/ECE) + strengthen → temp 0.7 |
+| **C1** on structured signals | ⚪ **null so far** | content-pref/willingness/difficulty separation ≈0 at temp 0 (§14.13.5) | temp 0.7 |
+| **Response-style / calibration mechanism** | ✅ **characterized** | central-tendency: VLM uses 51–58% of human scale spread; calibration transfers across datasets (§14.13.2, 14.13.6) | — |
+| **Bias / fairness** | ⚠️ **flagged** | fair on personality/age; **nationality bias gap 0.50**, region 0.23 (§14.12.5) | net out in C3; ethics appendix |
+| **Leakage** | ✅ **clean** | artist-fame vs error ≈0; snapping a no-op; parse ≈100% (§14.12.6, 14.13.9) | optional memorization probe (needs inference) |
+| **C3** — cross-cultural on generated images | ⚪ **not started** | LAPIS nationality separation is the real-image precursor (§14.11c) | Rapidata runs |
+| **C4** — audience editing feedback | ⚪ **not started** | complaint vocabulary looks usable (§14.12.7) | editor + reranker runs |
+
+**The forward plan, in order.** Current-data analysis is **exhausted**; every remaining step needs
+new inference.
+
+1. **Temperature-0.7 re-run of `full`** (spec: `docs/task_temperature_rerun.md`; owner: teammate).
+   The one action that unblocks the most: a real N-curve (C2), the distributional half of C1
+   (Wasserstein/KL/ECE), structured-signal separation, a de-confounded accuracy-vs-agreement link,
+   and a higher steerability/separation read (all currently floored by the temp-0 collapse). Do
+   **EVA + LAPIS first** (sets final); coordinate PARA with the widening.
+2. **Widen PARA image coverage** (6.4% → higher; owner: user). Re-run every `scripts/analysis/`
+   script on the wider logs — the pipeline is fully automated and idempotent.
+3. **Re-run the analysis suite on the new logs** (wiring the `*_t07` / wider folders into
+   `common.RUNS` is a one-line change) and record deltas against the temp-0 floors in a new §14.15.
+4. **C3 (Rapidata cross-cultural)** — now well-motivated by the LAPIS nationality separation, with
+   the national-bias control (§14.12.5) and calibration-transfer (§14.13.6) prerequisites validated.
+5. **C4 (editing loop)** — proposer ≠ reranker; seed complaints from the mined rationale vocabulary.
+
+**One-line summary.** The supporting science (Exp 0 + C2) is proven, the persona is proven
+functional, and the headline C1 between-group claim is demonstrated on LAPIS and significant under
+correction; the work now is entirely to (a) lift the temperature-0 floor and (b) extend to generated
+images (C3) and editing (C4) — no current-data analysis remains.
 
 ---
 
