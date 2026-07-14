@@ -1,4 +1,33 @@
-# Task: re-run the persona (`full`) ratings at temperature 0.7
+# Task: re-run the persona (`full`) ratings — elicit a real panel distribution
+
+> ### ⚠️ UPDATE 2026-07-14 — temp-0.7 was tried and is NOT enough. Read this first.
+> The PARA + EVA `full` runs were redone at **temperature 0.7** and analyzed (see `research_plan.md`
+> §14.15, `results/temp_compare.json`). Result: **the panel did not de-collapse.** Sampling was
+> active (12–13% of predictions changed) but Qwen2-VL-7B is so peaked on discrete rating tasks that
+> 0.7 reverts to the mode ~88% of the time (one EVA image: all 46 personas returned 7.0). Every
+> temperature-sensitive metric — degenerate-panel fraction (~0.42–0.53), the flat N-curve,
+> steerability, between-group separation — was **unchanged**. So temperature 0.7 with a single sample
+> does **not** unblock the N-curve or the distributional C1 metrics.
+>
+> **Do this instead (in order of preference):**
+> 1. **Token-level score distribution (preferred).** Instead of sampling, read the model's softmax
+>    probability over the *valid score tokens* at the score position (one forward pass per
+>    (image, persona)). This recovers the full predictive distribution with no sampling variance and
+>    no mode-collapse — exactly the panel spread we need. Requires exposing logits in the backend
+>    (`src/persona/backend/qwen.py`) rather than decoding text.
+> 2. **Self-consistency at higher temperature.** T ≈ 8–16 samples per (image, persona) at
+>    **temp ≈ 1.0–1.3**, aggregated into an empirical distribution (Option B below, escalated). Costs
+>    T× inference.
+> 3. **Temperature sweep first.** Try {0.7, 1.0, 1.3, 1.6} on a small image subset and check when the
+>    degenerate-panel fraction actually drops (use `scripts/analysis/temp_compare.py` as the harness)
+>    before paying for a full run.
+>
+> Also still outstanding: **the LAPIS temp/decoding re-run was not delivered** (only PARA + EVA
+> arrived). PARA was widened to 4,000 images in the process — that part was valuable and is kept.
+>
+> The original temp-0.7 instructions below are retained for context.
+
+---
 
 **Owner:** _(teammate)_ · **Est. effort:** mostly GPU time; near-zero code (Option A) ·
 **Prereq:** the same environment/model you used for the original runs (`Qwen/Qwen2-VL-7B-Instruct`,

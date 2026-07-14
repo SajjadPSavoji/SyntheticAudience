@@ -851,10 +851,10 @@ structured-signal separation, emotion, C3, C4) all genuinely require the new run
 | Claim / question | Status | Decisive evidence | Blocking work |
 |---|---|---|---|
 | **Exp 0** — individual near-noise, group reliable | ✅ **proven** | ICC1 0.19–0.47 vs ICCk 0.84–0.96; persona-ΔR² 1–4%; classical CF gain only 0.01–0.03 (§14.4, 14.11a, 14.12.4) | — |
-| **C2** — aggregation + calibration works | ✅ **proven (mean/rank)** | calibrated aggregate beats population prior on **all 16 axes** (§14.6, 14.12.1) | real N-curve → temp 0.7 |
-| **Steerability** — persona is functional | ✅ **proven** | score-level r +0.37/+0.39 (PARA/LAPIS); **rationale-text AUC 0.58–0.70 vs blind 0.50, incl. EVA** (§14.7, 14.12.7) | stronger score-level effect → temp 0.7 |
-| **C1** — reproduce between-group differences (**headline**) | 🟡 **demonstrated on LAPIS** | between-group separation **+0.17 [0.15,0.18]** vs blind ≈0; survives Holm; PARA +0.04; EVA fails (§14.11c, 14.13.7) | distribution match (W1/KL/ECE) + strengthen → temp 0.7 |
-| **C1** on structured signals | ⚪ **null so far** | content-pref/willingness/difficulty separation ≈0 at temp 0 (§14.13.5) | temp 0.7 |
+| **C2** — aggregation + calibration works | 🟡 **proven (mean/rank); aggregation *mechanism* not shown** | calibrated aggregate beats prior on **all 16 axes** (§14.6, 14.12.1); but N-curve is flat on all 3 datasets → the win is image-quality+calibration, **not** persona-averaging | real N-curve needs a **decoding fix** — temp 0.7 was tried on all 3 and **failed** (§14.15) |
+| **Steerability** — persona is functional | ✅ **proven** | score-level r +0.37/+0.39 (PARA/LAPIS); **rationale-text AUC 0.58–0.70 vs blind 0.50, incl. EVA** (§14.7, 14.12.7); temperature-robust (§14.15) | stronger score-level effect → decoding fix (temp 0.7 insufficient) |
+| **C1** — reproduce between-group differences (**headline**) | 🟡 **demonstrated on LAPIS; temperature-robust** | separation **+0.17 [0.15,0.18]** vs blind ≈0; survives Holm; unchanged at temp 0.7 (§14.15); PARA +0.04; EVA fails (§14.11c, 14.13.7) | distributional half (W1/KL/ECE) still needs the decoding fix |
+| **C1** on structured signals | ⚪ **null** | content-pref/willingness/difficulty separation ≈0 — confirmed still ≈0 at temp 0.7 (§14.13.5, 14.15) | decoding fix (temp 0.7 tried, still null) |
 | **Response-style / calibration mechanism** | ✅ **characterized** | central-tendency: VLM uses 51–58% of human scale spread; calibration transfers across datasets (§14.13.2, 14.13.6) | — |
 | **Bias / fairness** | ⚠️ **flagged** | fair on personality/age; **nationality bias gap 0.50**, region 0.23 (§14.12.5) | net out in C3; ethics appendix |
 | **Leakage** | ✅ **clean** | artist-fame vs error ≈0; snapping a no-op; parse ≈100% (§14.12.6, 14.13.9) | optional memorization probe (needs inference) |
@@ -864,23 +864,157 @@ structured-signal separation, emotion, C3, C4) all genuinely require the new run
 **The forward plan, in order.** Current-data analysis is **exhausted**; every remaining step needs
 new inference.
 
-1. **Temperature-0.7 re-run of `full`** (spec: `docs/task_temperature_rerun.md`; owner: teammate).
-   The one action that unblocks the most: a real N-curve (C2), the distributional half of C1
-   (Wasserstein/KL/ECE), structured-signal separation, a de-confounded accuracy-vs-agreement link,
-   and a higher steerability/separation read (all currently floored by the temp-0 collapse). Do
-   **EVA + LAPIS first** (sets final); coordinate PARA with the widening.
-2. **Widen PARA image coverage** (6.4% → higher; owner: user). Re-run every `scripts/analysis/`
-   script on the wider logs — the pipeline is fully automated and idempotent.
-3. **Re-run the analysis suite on the new logs** (wiring the `*_t07` / wider folders into
-   `common.RUNS` is a one-line change) and record deltas against the temp-0 floors in a new §14.15.
-4. **C3 (Rapidata cross-cultural)** — now well-motivated by the LAPIS nationality separation, with
-   the national-bias control (§14.12.5) and calibration-transfer (§14.13.6) prerequisites validated.
-5. **C4 (editing loop)** — proposer ≠ reranker; seed complaints from the mined rationale vocabulary.
+> **★ ACTIVE WORKSTREAM (decided 2026-07-14): C3 — cross-cultural preference on AI-generated images
+> (Rapidata).** We are not spending more compute on the temperature/decoding problem; instead we
+> extend to C3, which builds directly on our strongest result (the LAPIS nationality separation).
+> Full teammate-facing spec: **`docs/claim3_cross_cultural.md`**. Data source confirmed available and
+> correctly structured (per-vote `country`/`language` present) — see §14.16 below.
+
+1. **C3 (Rapidata cross-cultural) — ACTIVE.** Score frozen-judge appeal for unique AI-generated
+   images conditioned on the *voter's country*, restricted to nationalities that also appear in
+   LAPIS, and predict pairwise winners on **disagreement pairs** (ΔAUC vs a global-preference
+   baseline + a no-persona control). Prerequisites already validated: national-bias control
+   (§14.12.5) and calibration transfer (§14.13.6). Data-prep + analysis are local (no GPU);
+   inference is the teammate's run, exported like the real-image runs.
+2. **C4 (editing loop)** — after C3; proposer ≠ reranker; seed complaints from the mined rationale
+   vocabulary (§14.12.7).
+
+*Parked (not pursuing now):* the decoding escalation (token-level score distribution / higher-temp
+self-consistency, `docs/task_temperature_rerun.md`) that would unblock the real N-curve and the
+distributional half of C1; further PARA widening. These stay documented for
+if we revisit, but C3 is the priority.
 
 **One-line summary.** The supporting science (Exp 0 + C2) is proven, the persona is proven
 functional, and the headline C1 between-group claim is demonstrated on LAPIS and significant under
-correction; the work now is entirely to (a) lift the temperature-0 floor and (b) extend to generated
-images (C3) and editing (C4) — no current-data analysis remains.
+correction; the active push is now **C3 — does the same cross-cultural signal carry from real art to
+AI-generated images** — followed by C4.
+
+### 14.15 Temperature-0.7 re-run results — the re-run did **not** lift the floor (with one coverage win)
+
+*Recorded 2026-07-14 (updated with LAPIS 2026-07-14). Data: `data/results/{para,eva,lapis}_full_t07/`
+(all three persona runs at temperature 0.7, single sample). Script: `temp_compare.py` →
+`results/temp_compare.json`. Note PARA temp-0.7 was **also widened to 4,000 images** (from 2,000), so
+its column mixes temperature and coverage; **EVA and LAPIS temp-0.7 are the same task sets** (clean
+temperature-only comparisons).*
+
+**Diagnosis first: the model barely sampled.** Sampling *was* active (12–13% of predictions changed
+vs temp-0, mean |Δ|≈0.07–0.13), but Qwen2-VL-7B is so peaked on these discrete rating tasks that
+0.7 decoding **reverts to the mode ~88% of the time** — e.g. one EVA image had all 46 personas
+return exactly 7.0. So the panel did not gain the spread the re-run was meant to inject.
+
+| Metric (persona `full`) | PARA t0 (2k) | PARA t0.7 (4k) | EVA t0 | EVA t0.7 | LAPIS t0 | LAPIS t0.7 |
+|---|---|---|---|---|---|---|
+| Degenerate-panel fraction | 0.48 | 0.42 | 0.51 | 0.53 | 0.04 | 0.03 |
+| N-curve drop (N=1→20) | 0.003 | 0.004 | 0.003 | 0.003 | 0.011 | 0.006 |
+| C1 between-group separation | 0.044 [0.025,0.064] | 0.040 [0.027,0.055] | −0.085 | −0.080 | **0.166 [0.150,0.181]** | **0.172 [0.156,0.189]** |
+| Steerability r | 0.367 | 0.386 | −0.239 | −0.272 | 0.394 | 0.407 |
+| Persona value (within-image) | 0.024 | 0.022 | −0.017 | −0.014 | 0.094 | 0.092 |
+| Scale-usage ratio (vs human) | 1.15 | 1.17 | 0.58 | 0.56 | 0.51 | 0.48 |
+
+**Conclusion (all three datasets).** Every temperature-sensitive metric is **essentially unchanged**:
+the panel is still collapsed where it was (PARA/EVA ~42–53%; LAPIS was never collapsed — its 0–100
+scale gives room — so temp had little to fix there), the **N-curve is still flat**, and steerability /
+persona-value / scale-compression all move within noise. Temperature 0.7 with single-sample decoding
+is **not** enough to overcome this model's peakedness — the floors identified in §14.5/§14.11/§14.13
+persist. **Silver lining: the headline C1 between-group separations are temperature-robust** — LAPIS
+holds at +0.17 (t0) → +0.17 (t0.7), PARA at +0.04, EVA still fails — so the C1 result is *not* a
+temp-0 artifact, which strengthens it for the write-up.
+
+**The coverage win (independent of temperature).** Doubling PARA to 4,000 images **confirms and
+tightens the headline between-group separation**: +0.040, CI **[0.027, 0.055]** on 46,160 cells
+(was +0.044 [0.025, 0.064] on 23k) — the PARA result is real and now more precise. (EVA still fails,
+as expected from its thin personas.)
+
+**Revised decoding recommendation (supersedes the temp-0.7 spec).** To actually elicit a panel
+distribution from a peaked judge, escalate decoding — in order of preference:
+1. **Read the token-level score distribution** (softmax over the valid score tokens / logits) instead
+   of sampling — the principled fix: it recovers the model's full predictive distribution per
+   (image, persona) in *one* forward pass, no sampling variance, no mode-collapse.
+2. **Self-consistency at higher temperature** — T≈8–16 samples per (image, persona) at **temp ≈
+   1.0–1.3**, aggregated to an empirical distribution (Option B of the task doc, escalated).
+3. A **temperature sweep** {0.7, 1.0, 1.3, 1.6} on a small image subset first, to find where the
+   panel actually de-collapses before paying for a full run.
+`docs/task_temperature_rerun.md` has been updated with this finding and the escalated plan.
+
+**Status deltas.** All three temp-0.7 runs are now in (`{para,eva,lapis}_full_t07`). C2's real N-curve
+and C1's distributional half remain **blocked** — not by "we haven't run it" but by a now-understood
+decoding limitation; the temp-0.7 runs answered the question and the answer redirects the method
+(elicit the distribution, don't sample it). Net positives: the wider-PARA C1 separation is promoted
+from "weak" toward "confirmed-but-small", and **all three C1 separations are confirmed
+temperature-robust** (unchanged from temp-0), so the headline is not a decoding artifact.
+
+### 14.16 C3 data-source audit (Rapidata) — available and correctly structured
+
+*Recorded 2026-07-14. The C3 blocking prerequisite (plan §1.1 week-1 audit) is confirmed.*
+
+- **Source:** `Rapidata/700k_Human_Preference_Dataset_FLUX_SD3_MJ_DALLE3` (public HF dataset;
+  companion axes `Flux_SD3_MJ_Dalle_Human_Coherence_Dataset` and `..._Alignment_Dataset` also
+  present). It is a **pull**, not something we host — nothing to push to our repos.
+- **Schema (verified by streaming a row):** `prompt`, `image1`/`image2` (embedded 1024×1024 bytes),
+  `votes_image1`/`votes_image2`, `model1`/`model2` (the 4 generators), `image1_path`/`image2_path`,
+  and **`detailed_results`** — a JSON string of per-vote records
+  `{"votedFor":…, "userDetails":{"country":"IN","language":"en","userScore":0.78}}`.
+- **Verdict:** the make-or-break requirement — **per-vote country + language** — is present, so C3 is
+  runnable. Countries are ISO-2 codes (need an ISO↔LAPIS-nationality map, e.g. `GB`→`british`).
+  Split layout is sharded (`train_0001…`), not a single `train`.
+- **Implication:** C3 needs no new data licensing (public) and no push; the only new artifacts on our
+  side are the ISO↔LAPIS map and the frozen calibration reused from real images. Full plan in
+  `docs/claim3_cross_cultural.md`.
+
+### 14.17 Publication assessment — what we can honestly claim and where it can go
+
+*Recorded 2026-07-14. A frank read on publishability given we are not pursuing more decoding work
+until (optionally) after C3.*
+
+**Claim count.** Of the four headline claims: **C1 is meaningfully demonstrated** (on the strongest
+dataset, LAPIS, incl. the nationality axis, temperature-robust and Holm-significant); **C2 is
+half-demonstrated** (group beats individual and beats the prior after calibration — but the
+*aggregation mechanism*, the N-curve, is not shown and is our weakest claim); **C3 and C4 are not
+attempted**. **Exp 0 and the steerability gate are fully proven** and are strong on their own.
+
+**The honest caveat to hold onto.** Because the persona panel collapses, our "group prediction"
+success is really *"a calibrated frozen VLM predicts image-mean quality and captures nationality/
+age/art-interest **differences**"* — not *"averaging diverse personas cancels noise."* We should not
+sell C2's aggregation story as if the N-curve supported it; it does not.
+
+**What is publishable now (without C3/C4):** a self-contained **workshop paper**, the venue the
+proposal already targeted (**NeurIPS Creative AI 2026, non-archival, 2–6 pp; deadline ~Aug 3**).
+Defensible thesis:
+
+> *Frozen-VLM persona panels reproduce between-group aesthetic differences on art (by nationality,
+> age, art interest) but not on photos; individual taste sits at the noise ceiling; and the effect is
+> bounded by VLM central-tendency bias and decoding mode-collapse.*
+
+It delivers a rigorous **ceiling analysis** (Exp 0), a **positive headline** (image-controlled LAPIS
+between-group separation, no-persona control ≈0, temperature-robust), **honest negatives** (EVA fails,
+photos weak, N-curve flat, temp-0.7 didn't help), a **mechanism** (central-tendency compression,
+calibration necessity + cross-dataset transfer, persona steers text not scores), and **ethics +
+leakage** results. Suggested artifacts: Fig 1 = Exp 0 ceiling; Table 1 = C1 separation × 3 datasets
+(full vs blind, Holm); Fig 2 = response-style/calibration; appendices = bias + leakage. **It must not
+claim** cross-cultural generalization to *generated* images (C3), editing usefulness (C4), or that
+persona-aggregation is the mechanism.
+
+**Upgrade path.** **C3 is the single highest-value addition** — it turns the honest workshop paper
+toward the full-thesis paper by testing whether the LAPIS nationality signal carries to generated
+images, and reuses everything built. Hence C3 is the active workstream (§14.14).
+
+### 14.18 Project state — data, artifacts, and Hugging Face sync
+
+*Recorded 2026-07-14, for reproducibility hand-off.*
+
+- **Raw datasets on HF (private, pushed 2026-07-02):** `savoji/PARA`, `savoji/EVA`, `savoji/LAPIS`
+  (via `scripts/push_to_hf.py`; only these three are registered in `scripts/hf_dataset.py`).
+- **Not on HF (local only, `data/` git-ignored):** all run results under `data/results/` — the temp-0
+  `*_full`/`*_blind` runs, the temp-0.7 `*_full_t07` runs (PARA/EVA/LAPIS all in as of 2026-07-14),
+  and the analysis outputs in `results/*.json` + `results/figs/`. The sync scripts do **not** cover
+  results; backing them up would need a new private repo or an ad-hoc push.
+- **Licensing:** PARA/LAPIS are redistribution-restricted → any derived artifact (results embed their
+  human ratings) must stay **private**; EVA is CC0.
+- **C3 data:** Rapidata is public — pulled, not pushed (§14.16). The only new local artifacts C3 needs
+  are the **ISO↔LAPIS nationality map** and the **frozen calibration** object.
+- **Code in git:** the analysis suite (`scripts/analysis/`) and the imported teammate pipeline
+  (`src/`, `script/`); a subset was committed outside this session (HEAD `f3d7193`). `research_plan.md`
+  + `docs/*` carry the running log. `data/` and `results/` stay git-ignored by design.
 
 ---
 
