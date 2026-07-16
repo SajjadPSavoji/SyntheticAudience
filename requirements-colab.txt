@@ -1,0 +1,21 @@
+# Heavy GPU stack for the C4 auto-refinement editing loop (Colab A100).
+# Intentionally NOT merged into requirements.txt: the base env is a GPU-free
+# analysis/data env, and every heavy import in the C4 code is deferred, so
+# `import editor` works without any of these installed.
+#
+# Install on Colab:  pip install -r requirements-colab.txt
+# (Colab already ships a working torch; pin it here only if you hit a mismatch.)
+
+torch
+transformers>=4.44
+diffusers>=0.31          # FluxKontextPipeline (FLUX.1-Kontext-dev)
+accelerate>=0.34
+sentencepiece            # FLUX T5 tokenizer
+protobuf                 # T5/sentencepiece conversion
+safetensors
+huggingface_hub>=0.26
+Pillow
+scipy
+matplotlib
+pandas
+numpy

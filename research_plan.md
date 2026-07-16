@@ -1,6 +1,6 @@
 # Research Plan — Synthetic Audiences for Creative AI
 
-This is the step-by-step plan to build the system, run the experiments, and produce the results described in `PROPOSAL.md`. It maps directly to the four claims there: **C1** (predicting a group's reaction — the headline), **C2** (why aggregation makes that possible), **C3** (generalizing to AI-generated images across cultures), and **C4** (using the simulated audience as editing feedback), preceded by **Exp 0** (a ceiling analysis that motivates everything).
+This is the step-by-step plan to build the system, run the experiments, and produce the results described in `PROPOSAL.md`. It maps directly to the four claims there: **C1** (predicting a group's reaction — the headline), **C2** (why aggregation makes that possible), **C3** (generalizing to AI-generated images across cultures), and **C4** (using the simulated audience as the *critic* in an auto-refinement editing loop — better feedback than a single blind VLM or a fixed instruction), preceded by **Exp 0** (a ceiling analysis that motivates everything).
 
 The whole pipeline is built on Hugging Face, and every model call — the judge, the image editor, the reward/reranker — is made **serverlessly through Hugging Face Inference Providers**. We never train, fine-tune, or self-host a model backbone for the main result. Our own code only handles data processing, caching, calibration, metrics, and the classical (non-VLM) baselines.
 
@@ -9,7 +9,7 @@ The whole pipeline is built on Hugging Face, and every model call — the judge,
 2. **MPR first.** The Minimum Publishable Result is Exp 0 + C1 + C2 on one pinned serverless VLM. Everything else layers on top.
 3. **Persona is text; the image is the only visual input.**
 4. **Pre-register** the primary statistical endpoints and the population-mean baseline before looking at any test result.
-5. **The proposer is never the reranker** in C4, and every headline number carries a bootstrap confidence interval.
+5. **The critic is never the objective** in C4 — the audience/agentic simulation that proposes edits must be independent (different model family) from the held-out score that judges whether the image improved — and every headline number carries a bootstrap confidence interval.
 
 ---
 
@@ -65,7 +65,7 @@ The goal is two clean tables: one **unified per-(image, rater) parquet** for the
 | **RPCD** | project page | warm-up critique language | optional; skip if blocked |
 | **Rapidata** | `load_dataset("Rapidata/700k_Human_Preference_Dataset_FLUX_SD3_MJ_DALLE3")` (+ companion sets) | C3 | parse `detailed_results` for per-vote `country` and `language` |
 | **RichHF-18K** *(optional)* | HF dataset / extract via Pick-a-Pic | an extra fine-grained generated-image sanity check | not required |
-| **EditReward-Data / -Bench** | `load_dataset("TIGER-Lab/EditReward-Data")`, `("TIGER-Lab/EditReward-Bench")` | C4 | preference pairs + benchmark |
+| ~~EditReward-Data / -Bench~~ | `load_dataset("TIGER-Lab/EditReward-Data")`, `("TIGER-Lab/EditReward-Bench")` | ~~C4~~ (**dropped as C4 objective**, §14.19 — instruction-relative, confounds the critic ablation; optional robustness-ensemble member only) | preference pairs + benchmark |
 
 **Week-1 license and availability audit (blocking).** Before building anything, confirm: (a) PARA and LAPIS redistribution terms (EVA is CC0, so it is already cleared); (b) the Rapidata license and that image bytes or provider-accessible URLs are present; (c) the LAPIS nationality list; (d) whether the dataset terms permit sending images and persona metadata to hosted inference providers; and (e) which candidate VLM/editor/reranker models are actually callable through Inference Providers.
 
@@ -160,8 +160,13 @@ class Judge:
 - **Judge.** The unified default is one HF Inference Providers conversational VLM, pinned after the week-1 audit. Seed candidates: `zai-org/GLM-4.5V`, `CohereLabs/aya-vision-32b:cohere`, plus any newly provider-backed Gemma/Qwen/Kimi/Phi/Nemotron VLM. The old open-weight shortlist is part of the MPR only if those exact models become serverless-callable.
 - **Serverless audit log.** For every candidate, record the model ID, provider, task support, image-input support, JSON/schema support, max context/output, pricing and rate limits, content filters, and smoke-test parse rate. Keep the rejected candidates too.
 - **Output format.** Request JSON/schema mode when supported, and also force JSON in the prompt; parse with a tolerant parser; on a parse failure, retry once and then mark the value NaN.
-- **Reward wrappers** (`src/models/rewards.py`). Serverless-first: use EditReward only if a provider route exists; otherwise evaluate C4 with EditReward-Bench labels and serverless scalar evaluators, always keeping proposer ≠ reranker.
-- **Editor** (`src/models/editor.py`). Serverless-first: audit `black-forest-labs/FLUX.1-Kontext-dev` via a provider route, with SD-3.5-Medium (or another provider-backed editor) as fallback.
+- **Objective/reward wrappers** (`src/models/rewards.py`). All **local** (Colab GPU). The C4 held-out
+  objective is an **instruction-free quality ensemble from a different family than the critic**: a
+  LAION/AVA-style aesthetic predictor (primary) + PickScore / ImageReward (secondary, source-caption
+  anchored). EditReward is instruction-relative, so it is *not* the objective — at most one member of
+  a robustness ensemble. Always keep **critic ≠ objective**.
+- **Editor** (`src/models/editor.py`). Local: `black-forest-labs/FLUX.1-Kontext-dev`, with
+  InstructPix2Pix or SD-3.5-Medium as the lighter-Colab fallback.
 
 ---
 
@@ -218,11 +223,49 @@ The judge is a frozen serverless VLM queried with a prompt through HF Inference 
 
 ## 7. Stage 2 — Audience-guided editing (`src/eval/c4_editing.py`)
 
-1. Take an input image, sample an audience, and aggregate its complaints and between-group disagreements.
-2. The **judge, acting as proposer**, distills a single edit instruction (constrained short text).
-3. The **serverless editor** (FLUX.1-Kontext via a provider route when available; otherwise a provider-backed fallback) produces K candidates (K = 4).
-4. **Rerank using held-out signals only** — EditReward if serverless-accessible, otherwise EditReward-Bench labels or serverless scalar evaluators. *The proposer never reranks.*
-5. Compare the conditions: `{no-feedback, generic-VLM-critique, EditReward-only, audience-aggregate, audience-targeted}`.
+**Reframed 2026-07-15 (see §14.19).** C4 is now a **critic-quality ablation inside a 10-step
+auto-refinement loop**, with **no demographic dimension**. The claim is narrow and self-contained:
+*using a society / agentic simulation as the editing critic yields a better feedback signal than a
+single blind VLM, or than a fixed "improve the image" string.* It stands entirely on its own and
+does not depend on C3. All models run **locally on Colab GPUs** (the serverless requirement was
+dropped 2026-07-11, §14.8) — frozen Qwen2-VL-7B critic, a local editor, and a held-out scoring
+ensemble.
+
+**The loop (auto-refinement, R = 10 steps).** The topology is chosen to survive 10 steps without
+the compounding-degradation artifact that would otherwise sink the graph:
+
+1. **Source pool** — ~100–200 images that real humans rated **low-to-mid** (drawn from EVA/PARA by
+   their ground-truth score), so each image has genuine headroom to improve.
+2. **Feedback module** (*the only thing that varies across conditions*) emits one imperative edit
+   instruction ≤ 15 words (Appendix A). Complaints are aggregated across the persona panel and
+   accumulated across steps.
+3. **Anchored re-edit** — the accumulated instruction is applied to the **original** image (not the
+   previous output), so artifacts never stack. Editor = **FLUX.1-Kontext-dev** (local), with
+   **InstructPix2Pix / SD-3.5** as the lighter-Colab fallback; it produces K = 2–4 candidates.
+4. **Accept-if-better (hill-climb)** — commit the new candidate **only if** the held-out objective
+   improves *and* identity-drift stays under a cap; otherwise keep the current best. This yields a
+   monotone best-so-far trajectory and blocks reward-hacking / mush.
+5. Repeat for 10 steps, caching keyed by `(image_id, condition, step, instruction_hash)`.
+
+**The conditions (the ablation).** `{static-string, blind-VLM, society}`, plus a labelled
+`reward-only` *oracle ceiling* (it is allowed to see the objective, so it is a reference bound, not
+a fair baseline):
+
+| Condition | Feedback signal | Role |
+|---|---|---|
+| **static** | fixed string, e.g. "improve this image" | floor — is any critic needed? |
+| **blind-VLM** | one generic Qwen2-VL critique → instruction | the baseline to beat |
+| **society** | N persona critiques → aggregated complaints → instruction | the method |
+| *reward-only (oracle)* | pick the edit maximizing the objective | labelled ceiling, not a baseline |
+
+**The held-out objective (`critic ≠ objective`).** An **instruction-free quality ensemble from a
+different model family than the critic**: a LAION/AVA-style **aesthetic predictor** (primary,
+needs no text) plus **PickScore / ImageReward** anchored to the source image's caption (secondary +
+content-drift check). Report each objective *separately*, never a single number. **EditReward /
+EditReward-Bench is deliberately *not* the objective** here: it scores instruction-*adherence*
+relative to a given instruction, so it would reward whichever condition writes the easiest-to-follow
+instruction — a confound. It may still appear as one *edit-aware* member of a robustness ensemble,
+never as the sole judge.
 
 ---
 
@@ -255,12 +298,32 @@ Slices are age bucket × art familiarity × (nationality where available). A min
 - **Controls** — (i) a no-persona prompt (separates the persona signal from the default judgment) and (ii) a global-preference baseline (separates the cross-cultural signal from universal quality).
 - Also report the **real-to-generated gap** relative to C1.
 
-### 8.4 C4 — editing usefulness
+### 8.4 C4 — editing feedback quality (critic ablation, 10-step loop)
 
-- **EditReward-Bench** — ranking agreement (accuracy, Kendall-τ) for each condition.
-- **C4-core (slicing-independent)** — win-rate of audience-aggregate vs. single-judge vs. no-feedback, using EditReward or a serverless held-out evaluator if available, EditReward-Bench labels, plus an optional human study.
-- **C4-targeted** — within-group win-rate, **contingent on C3 showing a disagreement-pair signal**. If between-group variance is null, we report C4-core only.
-- **Secondary** — edit drift (DINO/CLIP-I identity similarity to the source).
+The deliverable is an **optimization-trajectory** result over the 10-step loop (§7), demographic-free.
+All metrics compare `society` vs `blind-VLM` vs `static`, per objective in the held-out ensemble,
+with 1000× bootstrap CIs over images.
+
+- **Best-so-far objective vs step (1–10)** — the headline figure: three trajectory lines with CI
+  bands. Report both the raw per-step score and the best-so-far envelope (best-so-far is the standard
+  optimization-curve summary; showing the raw guards against it reading as engineered). *Society is
+  expected to climb higher and keep improving later; static should plateau almost immediately.*
+- **Trajectory AUC** — area under the 10-step best-so-far curve, one number per condition per
+  objective, with a CI → the single summary stat for "society > blind" and "society > static".
+- **Convergence step** — the step at which each condition saturates (the C4 analog of the C2
+  saturating-N).
+- **Drift-vs-step guardrail** — DINOv2 / CLIP-I identity similarity to the source, plotted alongside.
+  The clean win is society raising the objective *while holding drift ≈ blind*; a rising objective
+  with rising drift is the reward-hacking tell and is reported honestly per objective.
+- **Mechanism evidence** — complaint diversity: the number of *distinct* actionable issues surfaced
+  per step by the society vs the single critic (this is *why* the society should win, and predicts in
+  advance whether there is headroom).
+- *Optional gold check* — a small forced-choice human study on the final images (Appendix G Part B);
+  nice-to-have, not required for the claim.
+
+*Dropped from the earlier framing:* C4-targeted / within-group win-rate and the EditReward-Bench
+ranking-agreement table — both belonged to the demographic version of C4, which is no longer pursued
+(§14.19).
 
 ### 8.5 Leakage diagnostics
 
@@ -271,7 +334,7 @@ Slices are age bucket × art familiarity × (nationality where available). A min
 
 ## 9. Statistical analysis plan (`preregistration.md`)
 
-- **Primary statistical endpoints (fixed before test access):** (1) the C1 group-distribution Wasserstein vs. the no-persona aggregate; (2) C1 between-group separation; (3) the C2 saturating-N and the aggregate-vs-individual gap; (4) the C3 ΔAUC on disagreement pairs; (5) the C4-core win-rate vs. single-judge.
+- **Primary statistical endpoints (fixed before test access):** (1) the C1 group-distribution Wasserstein vs. the no-persona aggregate; (2) C1 between-group separation; (3) the C2 saturating-N and the aggregate-vs-individual gap; (4) the C3 ΔAUC on disagreement pairs; (5) the C4 trajectory-AUC of the society critic vs. the blind-VLM critic over the 10-step loop.
 - **Confidence intervals** — 1000-sample bootstrap, clustered by rater and by image.
 - **Multiple comparisons** — Holm correction across the subgroup/slice sweep (secondary analyses).
 - **Significance** — report the effect size and CI, not just a p-value; a result "counts" only if its CI excludes the null *and* it sits within the Exp-0 ceiling.
@@ -286,7 +349,7 @@ Slices are age bucket × art familiarity × (nationality where available). A min
 4. **Calibration** — with vs. without the post-hoc mapping.
 5. **Aggregation vs. single judge**, and the **persona-sampling scheme** (how the panel is drawn) — core to C1.
 6. **Serverless judge/provider family** — the primary pinned VLM vs. 2–4 additional Inference Providers VLMs that pass the week-1 audit. The desired open-weight families (Gemma/Qwen/Kimi/Phi/Nemotron) are included only if provider-callable.
-7. **Reranker source** — EditReward vs. a scalar evaluator, for C4.
+7. **Objective source (C4)** — aesthetic predictor vs. PickScore/ImageReward vs. their ensemble, to show the society-vs-blind gap is not an artifact of one held-out scorer.
 8. *(Optional, non-validated)* a peer-revision audience probe.
 
 ---
@@ -307,10 +370,10 @@ Slices are age bucket × art familiarity × (nationality where available). A min
 | 2 | **Exp 0 ceiling**; the persona-card builder; prompt design; the **steerability gate** | persona ΔR² > 0 and steerability > 0 (else pivot) |
 | 3 | Post-hoc calibration; **C1 group prediction + C2 aggregation gap/N-curve + baselines** → **MPR locks** | C1 beats the no-persona aggregate; the N-curve improves with N |
 | 4 | **C3 on Rapidata** (zero-shot; disagreement ΔAUC + no-persona/global controls); leakage | the C3 ΔAUC CI excludes 0 (else report the null honestly) |
-| 5 | The editing loop; **C4-core on EditReward-Bench**; the serverless cross-model/provider panel on C1 + steerability; few-shot/self-consistency ablations | C4-core wins vs. single-judge |
+| 5 | The **10-step auto-refinement editing loop** (society / blind-VLM / static critics, local editor + held-out objective ensemble); the cross-model panel on C1 + steerability; few-shot/self-consistency ablations | society critic's trajectory-AUC beats the blind-VLM critic (CI excludes 0) |
 | 6 | Ablations; bias/fairness diagnostics; figures; writing (2–6 pp) | statistical endpoints reported with CIs |
 
-**Stretch goals (only once the MPR is solid):** C4-targeted, the optional human study, and a second editor (SD-3.5).
+**Stretch goals (only once the MPR is solid):** the optional human study (Appendix G Part B), and a second editor (SD-3.5) as a robustness check on the C4 loop.
 
 ---
 
@@ -574,7 +637,7 @@ coverage, uncalibrated-run-then-calibrated-offline) data.
 | **Bias / fairness** (ethics) | calibrated judge fair on personality/age/expertise (gap ≤0.04) but large **nationality/region bias** (gap 0.50 / 0.23) (§14.12.5) | ⚠️ **flag + control for it** | net out national bias in C3; report in ethics appendix |
 | **Leakage** | artist-fame vs error ρ ≈ 0; no memorization; zero-shot ⇒ no AVA path (§14.12.6) | ✅ **clean** | memorization-probe (needs inference) as a belt-and-suspenders check |
 | **C3** — generalize to generated images, cross-culture | *no runs* (but LAPIS nationality separation §14.11c is the real-image precursor) | ⚪ **not started** | Rapidata runs; contingent on C1 separation being real |
-| **C4** — audience as editing feedback | *no runs* (complaint-mining vocabulary looks usable, §14.12.7) | ⚪ **not started** | editor + held-out reranker loop |
+| **C4** — audience as editing critic (society vs blind-VLM vs static, 10-step loop; demographic-free — §14.19) | *no runs* (complaint-mining vocabulary looks usable, §14.12.7) | ⚪ **not started** | editor + held-out objective-ensemble loop |
 
 **Bottom line (updated after Tier 1).** The *supporting science* (Exp 0 + C2 — "the group is
 predictable where the individual is not, and aggregation is why") is **empirically in hand** once
@@ -610,7 +673,7 @@ stronger prompt) and extend to C3.
 
 **Tier 3 — new workstreams (contingent).**
 7. **C3** cross-cultural on Rapidata — contingent on C1 separation being real.
-8. **C4** editing loop (proposer ≠ reranker).
+8. **C4** 10-step auto-refinement editing loop (critic ≠ objective; society vs blind-VLM vs static critic; demographic-free — §14.19).
 9. **Ablations + leakage** — persona-field drop, few-shot, self-consistency; EVA↔AVA dedup and
    the memorization probe.
 
@@ -859,7 +922,7 @@ structured-signal separation, emotion, C3, C4) all genuinely require the new run
 | **Bias / fairness** | ⚠️ **flagged** | fair on personality/age; **nationality bias gap 0.50**, region 0.23 (§14.12.5) | net out in C3; ethics appendix |
 | **Leakage** | ✅ **clean** | artist-fame vs error ≈0; snapping a no-op; parse ≈100% (§14.12.6, 14.13.9) | optional memorization probe (needs inference) |
 | **C3** — cross-cultural on generated images | ⚪ **not started** | LAPIS nationality separation is the real-image precursor (§14.11c) | Rapidata runs |
-| **C4** — audience editing feedback | ⚪ **not started** | complaint vocabulary looks usable (§14.12.7) | editor + reranker runs |
+| **C4** — audience as editing critic (society vs blind-VLM vs static; 10-step loop; demographic-free — §14.19) | ⚪ **not started** | complaint vocabulary looks usable (§14.12.7) | editor + held-out objective-ensemble runs |
 
 **The forward plan, in order.** Current-data analysis is **exhausted**; every remaining step needs
 new inference.
@@ -876,7 +939,8 @@ new inference.
    baseline + a no-persona control). Prerequisites already validated: national-bias control
    (§14.12.5) and calibration transfer (§14.13.6). Data-prep + analysis are local (no GPU);
    inference is the teammate's run, exported like the real-image runs.
-2. **C4 (editing loop)** — after C3; proposer ≠ reranker; seed complaints from the mined rationale
+2. **C4 (10-step auto-refinement editing loop)** — after C3; **critic ≠ objective**; society vs
+   blind-VLM vs static critic; demographic-free (§14.19); seed complaints from the mined rationale
    vocabulary (§14.12.7).
 
 *Parked (not pursuing now):* the decoding escalation (token-level score distribution / higher-temp
@@ -1016,6 +1080,48 @@ images, and reuses everything built. Hence C3 is the active workstream (§14.14)
   (`src/`, `script/`); a subset was committed outside this session (HEAD `f3d7193`). `research_plan.md`
   + `docs/*` carry the running log. `data/` and `results/` stay git-ignored by design.
 
+### 14.19 C4 reframe — critic-quality ablation in a 10-step auto-refinement loop (demographic-free)
+
+*Recorded 2026-07-15. Supersedes the original §7 / §8.4 editing design; those sections and the
+Appendix B/E/F/G rows are updated in place to match.*
+
+**Decision.** C4 is narrowed to a single, self-contained claim that does **not** depend on C3 or on
+any demographic ground truth:
+
+> *Using a society / agentic simulation as the editing **critic** yields a better feedback signal —
+> when run as the critic inside an auto-refinement loop — than a single **blind VLM**, or than a
+> fixed **"improve the image"** string.*
+
+**Why the change.** The earlier design leaned on EditReward-Bench and a group-targeted (within-group
+win-rate) result. Two problems: (1) **no existing editing dataset has per-demographic human
+preference on edits**, so the group angle for C4 could only be ground-truthed with a human study; and
+(2) **EditReward-Bench is instruction-*adherence*, static, single-turn**, so it can neither close a
+loop nor distinguish a persona-society critic from a single critic (it has no audience axis, and it
+would reward whichever condition writes the easiest-to-follow instruction). The user's actual target
+is simpler and stronger: *society-as-critic > blind-VLM-critic > static-string*, demographic-free.
+
+**Design (full spec in §7, metrics in §8.4).**
+- **Loop:** 10-step auto-refinement. **Anchored re-edit** (accumulated instruction always applied to
+  the *original* image, so artifacts never stack) + **accept-if-better** hill-climb (commit only on
+  objective improvement within a drift cap → monotone best-so-far curve, no mush, resists
+  reward-hacking).
+- **Conditions:** `static` / `blind-VLM` / `society`, plus a labelled `reward-only` oracle ceiling.
+- **Source images:** ~100–200 EVA/PARA photos that real humans rated **low-to-mid** (genuine headroom
+  to improve).
+- **Held-out objective (`critic ≠ objective`):** an **instruction-free quality ensemble from a
+  different model family than the critic** — a LAION/AVA aesthetic predictor (primary) + PickScore /
+  ImageReward (secondary, source-caption anchored), reported per-objective. EditReward is *not* the
+  objective (instruction-relative); at most a robustness-ensemble member.
+- **Deliverable:** a trajectory result — best-so-far objective vs step (1–10) with CI bands,
+  trajectory-AUC (society vs blind, the pre-registered endpoint), convergence-step, a drift-vs-step
+  guardrail (DINOv2/CLIP-I identity to source), and complaint-diversity as mechanism evidence.
+- **Compute:** all local on Colab GPUs (frozen Qwen2-VL-7B critic, local FLUX.1-Kontext-dev editor,
+  local objective ensemble); ~18k editor calls at K=4 → an overnight A100 run (§ Appendix E).
+
+**Dropped:** the demographic C4-targeted / within-group win-rate, and EditReward-Bench as the C4
+objective. **Ordering unchanged:** C4 still follows C3 in the roadmap (§14.14), but it no longer
+*depends* on C3's between-group result — it is now runnable independently.
+
 ---
 
 ## Appendix A — Judge prompt and output schema
@@ -1039,7 +1145,7 @@ Respond ONLY with JSON matching the schema. Scores are 0.0–1.0.
 
 - **Decoding:** `temperature = 0`, `max_tokens = 128`. Prefer the provider's JSON/schema mode if supported; otherwise use a tolerant parser with one retry, then NaN.
 - **For art (LAPIS):** only `score` and `rationale` are scored (no structured fields).
-- **Edit-instruction prompt (C4 proposer):** input = the aggregated complaints → output = one imperative edit ≤ 15 words, no rationale.
+- **Edit-instruction prompt (C4 critic):** input = the complaints aggregated across the persona panel and accumulated through the current step → output = one imperative edit ≤ 15 words, no rationale.
 
 ---
 
@@ -1054,7 +1160,9 @@ Respond ONLY with JSON matching the schema. Scores are 0.0–1.0.
 | **Collaborative filtering (C2 ref)** | warm-start individual reference | matrix factorization (`surprise` SVD/ALS) on user × image; **warm-start only** (cold-start cannot predict) |
 | **Global preference (C3)** | is it just universal quality? | the mean win-rate ignoring the slice |
 | **No-persona prompt (C3)** | does the persona matter? | the same frozen judge with an empty profile |
-| **EditReward-only (C4)** | reward-guided editing | pick the edit maximizing EditReward if serverless-accessible; otherwise a serverless held-out evaluator / bench-label variant, with no audience critique |
+| **Static-string (C4)** | is any critic needed? | drive the loop with a fixed "improve this image" instruction — no critic |
+| **Blind-VLM (C4)** | value of the society | one generic (no-persona) Qwen2-VL critique per step — the baseline the society must beat |
+| **Reward-only oracle (C4)** | ceiling reference (not a fair baseline) | pick the edit maximizing the held-out objective directly; labelled as an upper bound because it sees the objective |
 
 *Note: the features-plus-metadata regressor and CF are classical non-VLM baselines (sklearn / `surprise`), fit on frozen embeddings or the rating matrix — no backbone weights are touched, consistent with the frozen-only rule. They exist to show that persona-prompting beats simple personalization; they are not part of the method.*
 
@@ -1104,7 +1212,7 @@ Every model call is inference-only; there is no training cost and no local-GPU r
 | Exp 0 | a CPU mixed model | minutes locally; no provider calls |
 | Audience inference (C1/C2) | **N personas × images × provider models** | the dominant serverless bill; cache by `(image_id, persona_hash, model_id, provider, prompt_version)`; sweep N up to 50 from the cached calls |
 | C3 on Rapidata | ~tens of thousands of images, one query per slice/persona design | reuse the cached per-image/persona scores across pairs/slices; cap the slices before querying |
-| Editing (C4) | K candidates × inputs through the provider editor | limit inputs to ~200; cache the generated candidates and the evaluation calls |
+| Editing (C4) | 10 steps × 3 conditions × ~150 images × K candidates (local Colab editor) | ~18k editor calls at K=4 → an overnight A100 run; levers: K=2–3, ~100 images; cache by `(image_id, condition, step, instruction_hash)`; static/blind are cheap, the society critique is the cost (batch + cache it) |
 
 **The rule:** query each image once per `(persona, model, provider, prompt)`, then assemble panels/slices/pairs from the cache — never re-run the VLM per pair.
 
@@ -1119,7 +1227,7 @@ Every model call is inference-only; there is no training cost and no local-GPU r
 | C2 | aggregate-vs-individual gap + N-personas curve | C2 (why it works) | Fig 3 (N-curve) + gap row |
 | Steerability | corr(pred Δ, empirical Δ) | validity gate | Table 1 footnote |
 | C3 | ΔAUC on disagreement pairs + no-persona/global controls | C3 | Table 2 |
-| C4 | win-rates (core + targeted) + edit-drift | C4 | Table 3 + qualitative figure |
+| C4 | 10-step best-so-far trajectory (society vs blind vs static) + trajectory-AUC + convergence-step + drift guardrail | C4 | Fig 4 (trajectory) + Table 3 (AUC) + qualitative figure |
 | Ablations | field / few-shot / self-consistency / calibration / aggregation / sampling / backbone | robustness | Table 4 |
 | Bias | subgroup calibration error | ethics | Appendix |
 
@@ -1129,7 +1237,7 @@ Every model call is inference-only; there is no training cost and no local-GPU r
 
 - **Platform:** Prolific or in-house, with consent and a de-identified persona intake (the PARA/LAPIS fields plus a Big-5 short form, e.g. BFI-10).
 - **Part A (psychographic groups, extends C3):** ~300 generated images (FLUX.1-dev / SD-3.5), ≥ 10 raters per image; the endpoint is the pooled subgroup distributional error.
-- **Part B (group-targeted, extends C4):** a forced choice over the edit conditions; the endpoint is the within-group win-rate.
+- **Part B (extends C4):** a forced choice over the final images from the three loop conditions (society / blind-VLM / static); the endpoint is the society-vs-blind win-rate. *(No group dimension — C4 is demographic-free as of §14.19.)*
 - **Power:** size for the *pooled subgroup* endpoint (the primary one); pre-register the sample size from a pilot variance estimate; individual-level analysis is exploratory.
 - **IRB:** a single protocol, submitted in week 1; if it slips, we ship on public data (the paper does not depend on this).
 - **Ethics:** frame outputs as dataset-sampled distributions, not group essences; report over- and under-statement of group gaps.
