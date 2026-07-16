@@ -71,12 +71,15 @@ def main() -> None:
     gain = (soc.loc[common] - base.loc[common]).sort_values(ascending=False)
     picks = list(gain.index[:N_SHOW])
 
+    # true source aesthetic = step-0 best_obj (identical across conditions)
+    start_score = (data["society"][data["society"]["step"] == 0]
+                   .set_index("image_id")["best_obj"].to_dict())
+
     cols = ["source"] + present
     fig, axes = plt.subplots(len(picks), len(cols),
                              figsize=(2.6 * len(cols), 2.6 * len(picks)))
     axes = np.atleast_2d(axes)
     for r, img_id in enumerate(picks):
-        src = finals["society"].loc[img_id]
         # source lives next to the society run's step0 file
         src_path = os.path.join(edits_dir, "society", img_id, "step0_source.png")
         for cc, col in enumerate(cols):
@@ -84,11 +87,16 @@ def main() -> None:
             ax.axis("off")
             if col == "source":
                 path = src_path
-                title = f"source\n(aes {finals['society'].loc[img_id]['best_obj']:.2f} start)"
-                # step0 best_obj is the source score; use step0 row if available
+                title = f"source\n(aes {start_score.get(img_id, float('nan')):.2f})"
             else:
-                path = str(finals[col].loc[img_id]["best_path"]) if img_id in finals[col].index else None
-                score = finals[col].loc[img_id]["best_obj"] if img_id in finals[col].index else float("nan")
+                # Reconstruct from the LOCAL edits_dir (best_path in the log is an
+                # absolute path from wherever the run executed, e.g. Colab/Drive).
+                if img_id in finals[col].index:
+                    bp = str(finals[col].loc[img_id]["best_path"])
+                    path = os.path.join(edits_dir, col, img_id, os.path.basename(bp))
+                    score = finals[col].loc[img_id]["best_obj"]
+                else:
+                    path, score = None, float("nan")
                 title = f"{LABELS[col]}\n(aes {score:.2f})"
             if path and os.path.exists(path):
                 ax.imshow(Image.open(path).convert("RGB"))

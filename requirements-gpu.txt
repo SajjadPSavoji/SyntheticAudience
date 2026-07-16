@@ -1,0 +1,22 @@
+# Heavy GPU stack for the C4 auto-refinement editing loop (H100 / A100 node or Colab).
+#
+# NOTE: torch is intentionally NOT listed here. Install it separately so it matches
+# your CUDA (scripts/setup_c4.sh does this; Colab already ships torch). On an HPC node
+# with a torch module, `module load` it and run setup with SKIP_TORCH=1.
+#
+#   pip install -r requirements-gpu.txt
+
+transformers>=4.44
+diffusers>=0.31          # FluxKontextPipeline (FLUX.1-Kontext-dev)
+accelerate>=0.34
+sentencepiece            # FLUX T5 tokenizer
+protobuf                 # T5/sentencepiece conversion
+safetensors
+huggingface_hub>=0.26
+datasets>=3.0            # scripts/fetch_from_hf.py
+python-dotenv>=1.0
+Pillow
+scipy
+matplotlib
+pandas
+numpy

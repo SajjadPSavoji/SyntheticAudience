@@ -145,7 +145,8 @@ def run_condition(condition, images, *, args, panel, backend, editor, objective,
     critic = build_critic(condition, backend=backend, panel=panel)
     distill = lambda img, acc, comps: distill_instruction(  # noqa: E731
         backend, img, acc, comps, max_words=args.max_instruction_words)
-    cache = EditCache(str(edits_dir / condition / "_cache.json"))
+    # Shard-specific cache so parallel per-GPU shards never race on one file.
+    cache = EditCache(str(edits_dir / condition / f"_cache{shard_tag}.json"))
 
     todo = [im for im in images if im["image_id"] not in done]
     print(f"[{condition}] {len(todo)} images to run ({len(done)} already done)")

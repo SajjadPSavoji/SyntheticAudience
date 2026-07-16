@@ -94,6 +94,17 @@ def _norm_complaint(c: str) -> str:
     return " ".join(str(c).lower().strip().rstrip(".").split())
 
 
+def _finals(df: pd.DataFrame) -> dict:
+    """Per-image final outcome: gain over the source + the committed best's drift."""
+    out: dict = {}
+    for img, recs in df.groupby("image_id"):
+        recs = recs.sort_values("step")
+        start, final = float(recs.iloc[0]["best_obj"]), float(recs.iloc[-1]["best_obj"])
+        out[str(img)] = {"start": start, "final": final, "gain": final - start,
+                         "drift_final": float(recs.iloc[-1]["drift_of_best"])}
+    return out
+
+
 def analyze(logs_dir: str, analysis_dir: str) -> dict:
     figs = os.path.join(analysis_dir, "figs")
     os.makedirs(figs, exist_ok=True)
@@ -201,7 +212,93 @@ def analyze(logs_dir: str, analysis_dir: str) -> dict:
     report["complaint_diversity"] = div
     report["_figure_diversity"] = os.path.relpath(div_path, analysis_dir)
 
+    # 6) headline: final gain, pairwise win-rate, and the drift-vs-gain check
+    finals = {c: _finals(data[c]) for c in present}
+    headline: dict = {}
+    for c in present:
+        g = np.array([finals[c][i]["gain"] for i in finals[c]])
+        d = np.array([finals[c][i]["drift_final"] for i in finals[c]])
+        headline[c] = {"n_images": int(len(g)),
+                       "mean_gain": float(g.mean()), "gain_ci": _boot_ci(g),
+                       "mean_drift_final": float(np.nanmean(d))}
+    report["headline"] = headline
+
+    # pairwise win-rate: fraction of images where A's final best beats B's.
+    winrates: dict = {}
+    for a in present:
+        for b in present:
+            if a == b:
+                continue
+            ids = set(finals[a]) & set(finals[b])
+            if not ids:
+                continue
+            wins = sum(finals[a][i]["final"] > finals[b][i]["final"] for i in ids)
+            winrates[f"{a}_vs_{b}"] = {"win_rate": wins / len(ids),
+                                      "wins": int(wins), "n": len(ids)}
+    report["win_rates"] = winrates
+
+    # headline figure: (left) mean final gain per condition; (right) drift-vs-gain
+    # scatter — the honesty check that gains aren't just identity drift.
+    fig, (axL, axR) = plt.subplots(1, 2, figsize=(11, 4.2))
+    xs = list(range(len(present)))
+    means = [headline[c]["mean_gain"] for c in present]
+    errs = [[headline[c]["mean_gain"] - headline[c]["gain_ci"][0] for c in present],
+            [headline[c]["gain_ci"][1] - headline[c]["mean_gain"] for c in present]]
+    axL.bar(xs, means, color=[COLORS[c] for c in present])
+    axL.errorbar(xs, means, yerr=errs, fmt="none", ecolor="k", capsize=4, lw=1)
+    axL.set_xticks(xs)
+    axL.set_xticklabels([LABELS[c] for c in present], rotation=15, ha="right")
+    axL.set_ylabel("mean final aesthetic gain")
+    axL.set_title("C4 — improvement over source (95% CI)")
+    axL.axhline(0, c="k", lw=0.6)
+    for c in present:
+        gx = [finals[c][i]["drift_final"] for i in finals[c]]
+        gy = [finals[c][i]["gain"] for i in finals[c]]
+        axR.scatter(gx, gy, color=COLORS[c], label=LABELS[c], s=40, alpha=0.8, edgecolor="w")
+    axR.axvline(0.85, ls="--", c="k", lw=0.8, label="drift cap")
+    axR.set_xlabel("identity similarity of final best (DINOv2)")
+    axR.set_ylabel("final aesthetic gain")
+    axR.set_title("C4 — gain vs identity drift (real improvement vs transformation)")
+    axR.legend(frameon=False, fontsize=8)
+    fig.tight_layout()
+    head_path = os.path.join(figs, "c4_headline.png")
+    fig.savefig(head_path, dpi=130)
+    plt.close(fig)
+    report["_figure_headline"] = os.path.relpath(head_path, analysis_dir)
+
+    # markdown summary table (the paper's main results table)
+    _write_summary_table(os.path.join(analysis_dir, "c4_summary.md"),
+                         present, headline, auc, conv, winrates, div)
+    report["_table_summary"] = "c4_summary.md"
+
     return report
+
+
+def _write_summary_table(path, present, headline, auc, conv, winrates, div) -> None:
+    def wr(a, b):
+        r = winrates.get(f"{a}_vs_{b}")
+        return f"{r['win_rate']:.0%} ({r['wins']}/{r['n']})" if r else "—"
+    lines = [
+        "# C4 — auto-refinement results summary",
+        "",
+        "| condition | n | mean final gain | trajectory-AUC | conv. step | mean drift(final) | uniq complaints/step | win vs static | win vs blind |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for c in present:
+        h, a = headline[c], auc[c]
+        gci = h["gain_ci"]
+        cs = conv[c]["median_step"]
+        dv = div.get(c, {}).get("overall_mean")
+        dv_str = f"{dv:.2f}" if dv is not None else "—"
+        lines.append(
+            f"| {LABELS[c]} | {h['n_images']} | "
+            f"{h['mean_gain']:+.3f} [{gci[0]:+.3f}, {gci[1]:+.3f}] | "
+            f"{a['mean']:.3f} | {cs if cs is not None else '—'} | "
+            f"{h['mean_drift_final']:.3f} | {dv_str} | "
+            f"{wr(c, 'static')} | {wr(c, 'blind')} |"
+        )
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
 
 
 def main() -> None:
