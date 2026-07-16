@@ -109,10 +109,12 @@ class AestheticObjective:
         torch = self._torch
         pil = [load_image(im) for im in images]
         inputs = self.processor(images=pil, return_tensors="pt").to(self.device)
+        pv = inputs["pixel_values"].to(self.dtype)
         with torch.inference_mode():
-            feats = self.clip.get_image_features(
-                pixel_values=inputs["pixel_values"].to(self.dtype)
-            ).float()
+            # Equivalent to clip.get_image_features but version-stable (that method
+            # returns a bare tensor on some transformers and a ModelOutput on others).
+            vision_out = self.clip.vision_model(pixel_values=pv)
+            feats = self.clip.visual_projection(vision_out.pooler_output).float()
             feats = feats / feats.norm(dim=-1, keepdim=True)  # L2-normalize
             scores = self.head(feats).squeeze(-1)
         return [float(s) for s in scores.cpu()]
