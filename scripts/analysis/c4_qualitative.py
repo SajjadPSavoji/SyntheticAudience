@@ -18,18 +18,20 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 
-from common import OUT_DIR, REPO, ensure_out
+import argparse
 
-C4_RESULTS = os.path.join(REPO, "data", "results")
+from common import REPO
+
+DEFAULT_OUTPUT_ROOT = os.path.join(REPO, "outputs", "c4_auto_research")
 CONDITIONS = ["static", "blind", "society", "reward_only"]
 LABELS = {"static": "static", "blind": "blind VLM", "society": "society",
           "reward_only": "reward-only"}
 N_SHOW = 5
 
 
-def load_c4(condition: str) -> pd.DataFrame:
+def load_c4(condition: str, logs_dir: str) -> pd.DataFrame:
     run = f"c4_{condition}"
-    parts = sorted(glob.glob(os.path.join(C4_RESULTS, run, f"{run}*.part-*.json")))
+    parts = sorted(glob.glob(os.path.join(logs_dir, run, f"{run}*.part-*.json")))
     rows: list[dict] = []
     for p in parts:
         with open(p, encoding="utf-8") as f:
@@ -44,11 +46,19 @@ def _final_best(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main() -> None:
-    ensure_out()
-    figs = os.path.join(OUT_DIR, "figs")
+    ap = argparse.ArgumentParser(description="C4 qualitative before/after grid.")
+    ap.add_argument("--output-root", default=DEFAULT_OUTPUT_ROOT,
+                    help="same root passed to script/c4_refine.py (default: %(default)s).")
+    ap.add_argument("--logs-dir", default=None, help="override <root>/logs.")
+    ap.add_argument("--edits-dir", default=None, help="override <root>/edits.")
+    ap.add_argument("--analysis-dir", default=None, help="override <root>/analysis.")
+    args = ap.parse_args()
+    logs_dir = args.logs_dir or os.path.join(args.output_root, "logs")
+    edits_dir = args.edits_dir or os.path.join(args.output_root, "edits")
+    figs = os.path.join(args.analysis_dir or os.path.join(args.output_root, "analysis"), "figs")
     os.makedirs(figs, exist_ok=True)
 
-    data = {c: load_c4(c) for c in CONDITIONS}
+    data = {c: load_c4(c, logs_dir) for c in CONDITIONS}
     present = [c for c in CONDITIONS if len(data[c])]
     finals = {c: _final_best(data[c]) for c in present}
     if "society" not in present:
@@ -67,9 +77,8 @@ def main() -> None:
     axes = np.atleast_2d(axes)
     for r, img_id in enumerate(picks):
         src = finals["society"].loc[img_id]
-        # source lives next to any condition's step0 file
-        cond_dir = os.path.join(REPO, "data", "c4_edits", "society", img_id)
-        src_path = os.path.join(cond_dir, "step0_source.png")
+        # source lives next to the society run's step0 file
+        src_path = os.path.join(edits_dir, "society", img_id, "step0_source.png")
         for cc, col in enumerate(cols):
             ax = axes[r, cc]
             ax.axis("off")

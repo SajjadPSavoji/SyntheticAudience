@@ -14,6 +14,7 @@ Pure re-analysis: no GPU/inference. Run from ``scripts/analysis/``.
 """
 from __future__ import annotations
 
+import argparse
 import glob
 import json
 import os
@@ -24,8 +25,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from common import OUT_DIR, REPO, ensure_out, write_json
+from common import REPO, _json_default
 
+# Same default root as script/c4_refine.py; override with --output-root.
+DEFAULT_OUTPUT_ROOT = os.path.join(REPO, "outputs", "c4_auto_research")
 CONDITIONS = ["static", "blind", "society", "reward_only"]
 COLORS = {"static": "#9e9e9e", "blind": "#1f77b4", "society": "#d62728",
           "reward_only": "#2ca02c"}
@@ -33,13 +36,12 @@ LABELS = {"static": "static string", "blind": "blind VLM", "society": "society",
           "reward_only": "reward-only (oracle)"}
 N_BOOT = 1000
 RNG = np.random.default_rng(0)
-C4_RESULTS = os.path.join(REPO, "data", "results")
 
 
-def load_c4(condition: str) -> pd.DataFrame:
+def load_c4(condition: str, logs_dir: str) -> pd.DataFrame:
     """Concatenate all part-files across shards for one c4_<condition> run."""
     run = f"c4_{condition}"
-    parts = sorted(glob.glob(os.path.join(C4_RESULTS, run, f"{run}*.part-*.json")))
+    parts = sorted(glob.glob(os.path.join(logs_dir, run, f"{run}*.part-*.json")))
     rows: list[dict] = []
     for p in parts:
         with open(p, encoding="utf-8") as f:
@@ -92,15 +94,14 @@ def _norm_complaint(c: str) -> str:
     return " ".join(str(c).lower().strip().rstrip(".").split())
 
 
-def analyze() -> dict:
-    ensure_out()
-    figs = os.path.join(OUT_DIR, "figs")
+def analyze(logs_dir: str, analysis_dir: str) -> dict:
+    figs = os.path.join(analysis_dir, "figs")
     os.makedirs(figs, exist_ok=True)
 
-    data = {c: load_c4(c) for c in CONDITIONS}
+    data = {c: load_c4(c, logs_dir) for c in CONDITIONS}
     present = [c for c in CONDITIONS if len(data[c])]
     if not present:
-        raise SystemExit("No c4 logs found under data/results/c4_* — run script/c4_refine.py first.")
+        raise SystemExit(f"No c4 logs found under {logs_dir}/c4_* — run script/c4_refine.py first.")
 
     report: dict = {"conditions": present, "n_boot": N_BOOT}
     mats: dict = {}
@@ -127,7 +128,7 @@ def analyze() -> dict:
     fig.savefig(traj_path, dpi=130)
     plt.close(fig)
     report["trajectory"] = traj
-    report["_figure_trajectory"] = os.path.relpath(traj_path, REPO)
+    report["_figure_trajectory"] = os.path.relpath(traj_path, analysis_dir)
 
     # 2) trajectory-AUC (+ society vs blind paired diff) ---------------------
     auc: dict = {}
@@ -174,7 +175,7 @@ def analyze() -> dict:
     fig.savefig(drift_path, dpi=130)
     plt.close(fig)
     report["drift"] = drift
-    report["_figure_drift"] = os.path.relpath(drift_path, REPO)
+    report["_figure_drift"] = os.path.relpath(drift_path, analysis_dir)
 
     # 5) complaint diversity per step (society vs blind) ---------------------
     div: dict = {}
@@ -198,15 +199,27 @@ def analyze() -> dict:
     fig.savefig(div_path, dpi=130)
     plt.close(fig)
     report["complaint_diversity"] = div
-    report["_figure_diversity"] = os.path.relpath(div_path, REPO)
+    report["_figure_diversity"] = os.path.relpath(div_path, analysis_dir)
 
     return report
 
 
 def main() -> None:
-    report = analyze()
-    path = write_json(report, "c4.json")
-    print(f"wrote {path}")
+    ap = argparse.ArgumentParser(description="C4 trajectory deliverables.")
+    ap.add_argument("--output-root", default=DEFAULT_OUTPUT_ROOT,
+                    help="same root passed to script/c4_refine.py (default: %(default)s).")
+    ap.add_argument("--logs-dir", default=None, help="override <root>/logs.")
+    ap.add_argument("--analysis-dir", default=None, help="override <root>/analysis.")
+    args = ap.parse_args()
+    logs_dir = args.logs_dir or os.path.join(args.output_root, "logs")
+    analysis_dir = args.analysis_dir or os.path.join(args.output_root, "analysis")
+
+    report = analyze(logs_dir, analysis_dir)
+    os.makedirs(analysis_dir, exist_ok=True)
+    out_json = os.path.join(analysis_dir, "c4.json")
+    with open(out_json, "w", encoding="utf-8") as f:
+        json.dump(report, f, indent=2, ensure_ascii=False, default=_json_default)
+    print(f"wrote {out_json}")
     if "society_vs_blind_auc" in report:
         s = report["society_vs_blind_auc"]
         print(f"society vs blind trajectory-AUC diff: {s['mean_diff']:+.4f} "

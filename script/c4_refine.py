@@ -39,8 +39,9 @@ PARA_IMAGES = DATA / "para" / "imgs"
 PARA_IMAGES_CSV = DATA / "para" / "annotation" / "PARA-Images.csv"
 PARA_USERINFO = DATA / "para" / "annotation" / "PARA-UserInfo.csv"
 
-EDITS_DIR = DATA / "c4_edits"
-RESULTS_DIR = DATA / "results"
+# All C4 outputs go under one root (override with --output-root, e.g. a Drive
+# folder). Layout: <root>/edits, <root>/logs, <root>/analysis.
+DEFAULT_OUTPUT_ROOT = REPO_ROOT / "outputs" / "c4_auto_research"
 
 
 # --------------------------------------------------------------------------
@@ -127,8 +128,10 @@ def run_condition(condition, images, *, args, panel, backend, editor, objective,
     from editor import EditCache, build_critic, distill_instruction, run_refinement
     from editor.loop import records_to_dicts
 
+    edits_dir = Path(args.edits_dir)
+    logs_dir = Path(args.logs_dir)
     run_name = f"c4_{condition}"
-    out_dir = RESULTS_DIR / run_name
+    out_dir = logs_dir / run_name
     out_dir.mkdir(parents=True, exist_ok=True)
     shard_tag = "" if not args.shard else f".shard{args.shard.replace('/', 'of')}"
     summary_path = out_dir / f"{run_name}{shard_tag}.json"
@@ -142,7 +145,7 @@ def run_condition(condition, images, *, args, panel, backend, editor, objective,
     critic = build_critic(condition, backend=backend, panel=panel)
     distill = lambda img, acc, comps: distill_instruction(  # noqa: E731
         backend, img, acc, comps, max_words=args.max_instruction_words)
-    cache = EditCache(str(EDITS_DIR / condition / "_cache.json"))
+    cache = EditCache(str(edits_dir / condition / "_cache.json"))
 
     todo = [im for im in images if im["image_id"] not in done]
     print(f"[{condition}] {len(todo)} images to run ({len(done)} already done)")
@@ -150,7 +153,7 @@ def run_condition(condition, images, *, args, panel, backend, editor, objective,
         records = run_refinement(
             im["image_id"], im["path"],
             condition=condition, editor=editor, objective=objective, drift=drift,
-            critic=critic, distill=distill, save_dir=str(EDITS_DIR),
+            critic=critic, distill=distill, save_dir=str(edits_dir),
             R=args.steps, K=args.candidates, drift_cap=args.drift_cap,
             seed=args.seed, cache=cache,
         )
@@ -217,6 +220,10 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--cpu-offload", action="store_true",
                    help="stream FLUX weights (use on <40GB GPUs; not needed on A100).")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--output-root", default=str(DEFAULT_OUTPUT_ROOT),
+                   help="root dir for all C4 outputs (edits/, logs/, analysis/); "
+                        "point at a Drive folder to persist, e.g. "
+                        "/content/drive/MyDrive/SyntheticAudience_C4 (default: %(default)s).")
     p.add_argument("--shard", default=None, metavar="i/N",
                    help="run image sub-shard i of N (round-robin).")
     p.add_argument("--resume", action="store_true")
@@ -227,6 +234,13 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     args = _parse_args()
     conditions = [c.strip() for c in args.conditions.split(",") if c.strip()]
+
+    # Derive the output layout from the single root (edits + logs; analysis is
+    # produced later by scripts/analysis/c4_*.py from the same root).
+    root = Path(args.output_root)
+    args.edits_dir = str(root / "edits")
+    args.logs_dir = str(root / "logs")
+    print(f"Output root: {root}  (edits -> {args.edits_dir}, logs -> {args.logs_dir})")
 
     images = select_source_images(args.dataset, args.n_images, tuple(args.low_mid_band))
     images = _shard(images, args.shard)
