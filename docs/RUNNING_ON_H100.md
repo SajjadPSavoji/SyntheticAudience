@@ -107,7 +107,7 @@ tail -f c4_run1.out      # watch progress
 **Optional overrides** (only if needed):
 ```bash
 NGPU=4            OUTPUT_ROOT=… scripts/run_c4.sh   # force 4-way shard (else auto)
-TOTAL_IMAGES=200  OUTPUT_ROOT=… scripts/run_c4.sh   # bigger run
+TOTAL_IMAGES=100  OUTPUT_ROOT=… scripts/run_c4.sh   # bigger run
 CONDITIONS=static,blind,society OUTPUT_ROOT=… scripts/run_c4.sh   # drop the oracle
 EXTRA_ARGS="--drift-cap 0.80"   OUTPUT_ROOT=… scripts/run_c4.sh   # tighten identity guard
 RUN_ANALYSIS=0    OUTPUT_ROOT=… scripts/run_c4.sh   # skip figures (make them later, C.3)
