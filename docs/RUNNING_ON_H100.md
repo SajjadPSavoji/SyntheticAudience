@@ -86,7 +86,29 @@ Expect: models load → `[static]/[blind]/[society] … checkpoint` lines → `D
 `/scratch/$USER/c4_smoke/edits/`. Glance at a couple of `edits/society/<id>/step*_best.png` to
 confirm edits are visibly changing. If this works, the full run will too.
 
-## C.2 The full experiment (this is the run to send)
+## C.2 Validate the deliverables on the smoke output — before the full run
+
+The smoke run uses the driver directly, so it does **not** auto-run the analysis. Generate the
+figures + table on it now to confirm the *whole* pipeline (loop → logs → figures → table) works
+end-to-end before committing hours to the full run:
+
+```bash
+cd scripts/analysis
+python c4_trajectory.py  --output-root /scratch/$USER/c4_smoke
+python c4_qualitative.py --output-root /scratch/$USER/c4_smoke
+cd ../..
+```
+
+Then check `/scratch/$USER/c4_smoke/analysis/`:
+- `c4.json` + `c4_summary.md` exist and open;
+- all six PNGs are in `figs/` — `c4_trajectory`, `c4_raw_objective`, `c4_headline`, `c4_drift`, `c4_diversity`, `c4_qualitative`;
+- `c4_qualitative.png` shows the source next to visibly-different edits per condition;
+- `c4_raw_objective.png` actually moves step-to-step (edits are happening).
+
+The **numbers here are meaningless** (2 images, 3 steps) — this step only proves the analysis runs
+and the figures render. If anything errors or a figure is blank, fix it now, not after the full run.
+
+## C.3 The full experiment (this is the run to send)
 
 ```bash
 OUTPUT_ROOT=/scratch/$USER/c4_run1 scripts/run_c4.sh
@@ -110,12 +132,12 @@ NGPU=4            OUTPUT_ROOT=… scripts/run_c4.sh   # force 4-way shard (else 
 TOTAL_IMAGES=100  OUTPUT_ROOT=… scripts/run_c4.sh   # bigger run
 CONDITIONS=static,blind,society OUTPUT_ROOT=… scripts/run_c4.sh   # drop the oracle
 EXTRA_ARGS="--drift-cap 0.80"   OUTPUT_ROOT=… scripts/run_c4.sh   # tighten identity guard
-RUN_ANALYSIS=0    OUTPUT_ROOT=… scripts/run_c4.sh   # skip figures (make them later, C.3)
+RUN_ANALYSIS=0    OUTPUT_ROOT=… scripts/run_c4.sh   # skip figures (make them later, C.4)
 ```
 
-## C.3 (Re)generate the figures/tables anytime
+## C.4 (Re)generate the figures/tables anytime
 
-Runs automatically at the end of C.2; to redo them (e.g. after copying the folder elsewhere):
+Runs automatically at the end of C.3; to redo them (e.g. after copying the folder elsewhere):
 ```bash
 cd scripts/analysis
 python c4_trajectory.py  --output-root /scratch/$USER/c4_run1
