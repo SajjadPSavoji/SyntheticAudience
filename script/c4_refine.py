@@ -214,10 +214,17 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--critic-model", default="Qwen/Qwen2-VL-7B-Instruct")
     p.add_argument("--steps", type=int, default=10)
     p.add_argument("--candidates", type=int, default=3)
-    p.add_argument("--drift-cap", type=float, default=0.85)
+    p.add_argument("--drift-cap", type=float, default=0.78,
+                   help="min DINOv2 identity similarity to commit an edit; 0.78 lets "
+                        "the (emphasized) visible edits through while still guarding "
+                        "identity (default: %(default)s).")
     p.add_argument("--panel-size", type=int, default=10)
     p.add_argument("--panel-seed", type=int, default=0)
     p.add_argument("--max-instruction-words", type=int, default=15)
+    p.add_argument("--edit-emphasis", default=None,
+                   help="suffix appended to every editor prompt to force a clearly "
+                        "visible change (default: a built-in bold-edit directive; "
+                        "pass '' to disable).")
     p.add_argument("--cpu-offload", action="store_true",
                    help="stream FLUX weights (use on <40GB GPUs; not needed on A100).")
     p.add_argument("--seed", type=int, default=0)
@@ -266,6 +273,8 @@ def main() -> None:
     if args.editor == "flux":
         editor_kwargs["model_name"] = args.model_name
         editor_kwargs["cpu_offload"] = args.cpu_offload
+    if args.edit_emphasis is not None:   # None => editor's built-in default directive
+        editor_kwargs["emphasis"] = args.edit_emphasis
     editor = build_editor(args.editor, **editor_kwargs)
     print("Loading aesthetic objective + drift metric...")
     objective = AestheticObjective()

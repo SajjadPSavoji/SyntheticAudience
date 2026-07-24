@@ -57,6 +57,35 @@ def _best_matrix(df: pd.DataFrame) -> tuple[np.ndarray, list[str], list[int]]:
     return piv.to_numpy(dtype=float), list(piv.index), list(piv.columns)
 
 
+def _raw_matrix(df: pd.DataFrame) -> tuple[np.ndarray, list[int]]:
+    """[n_images, n_steps] RAW per-step objective = best candidate this step (NOT
+    monotone; this is the fluctuating curve). Step 0 has no candidates -> best_obj."""
+    def raw_of(row):
+        cands = row.get("candidates") or []
+        aes = [c["aesthetic"] for c in cands if c.get("aesthetic") is not None]
+        return max(aes) if aes else row.get("best_obj")
+    tmp = df.copy()
+    tmp["_raw"] = tmp.apply(raw_of, axis=1)
+    piv = tmp.pivot_table(index="image_id", columns="step", values="_raw", aggfunc="first")
+    piv = piv.reindex(columns=range(int(df["step"].max()) + 1)).dropna(axis=0)
+    return piv.to_numpy(dtype=float), list(piv.columns)
+
+
+def _drift_cap(logs_dir: str, default: float = 0.78) -> float:
+    """Read the run's drift cap from a condition summary (so the figure line matches)."""
+    for c in CONDITIONS:
+        for s in glob.glob(os.path.join(logs_dir, f"c4_{c}", f"c4_{c}*.json")):
+            if ".part-" in os.path.basename(s):
+                continue
+            try:
+                d = json.load(open(s, encoding="utf-8"))
+                if d.get("drift_cap") is not None:
+                    return float(d["drift_cap"])
+            except Exception:
+                pass
+    return default
+
+
 def _boot_ci(vals: np.ndarray, stat=np.mean, n=N_BOOT) -> list[float]:
     vals = np.asarray(vals, dtype=float)
     if len(vals) == 0:
@@ -141,6 +170,25 @@ def analyze(logs_dir: str, analysis_dir: str) -> dict:
     report["trajectory"] = traj
     report["_figure_trajectory"] = os.path.relpath(traj_path, analysis_dir)
 
+    # 1b) RAW per-step objective (the fluctuating curve — best candidate/step) --
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    raw: dict = {}
+    for c in present:
+        Rm, rsteps = _raw_matrix(data[c])
+        rmean = Rm.mean(0)
+        raw[c] = {"steps": rsteps, "mean": rmean.tolist(), "n_images": int(Rm.shape[0])}
+        ax.plot(rsteps, rmean, "-o", ms=3, color=COLORS[c], label=LABELS[c])
+    ax.set_xlabel("refinement step")
+    ax.set_ylabel("mean best-candidate aesthetic (raw, per step)")
+    ax.set_title("C4 — raw per-step objective (fluctuates; not best-so-far)")
+    ax.legend(frameon=False)
+    fig.tight_layout()
+    raw_path = os.path.join(figs, "c4_raw_objective.png")
+    fig.savefig(raw_path, dpi=130)
+    plt.close(fig)
+    report["raw_trajectory"] = raw
+    report["_figure_raw"] = os.path.relpath(raw_path, analysis_dir)
+
     # 2) trajectory-AUC (+ society vs blind paired diff) ---------------------
     auc: dict = {}
     per_img_auc: dict = {}
@@ -150,7 +198,8 @@ def analyze(logs_dir: str, analysis_dir: str) -> dict:
         auc[c] = {"mean": float(a.mean()), "ci": _boot_ci(a), "n_images": int(len(a))}
     report["trajectory_auc"] = auc
 
-    if "society" in present and "blind" in present:
+    if "society" in present and "blind" in present and \
+            len(per_img_auc["society"].index.intersection(per_img_auc["blind"].index)):
         common_ids = per_img_auc["society"].index.intersection(per_img_auc["blind"].index)
         diff = (per_img_auc["society"].loc[common_ids]
                 - per_img_auc["blind"].loc[common_ids]).to_numpy()
@@ -176,7 +225,8 @@ def analyze(logs_dir: str, analysis_dir: str) -> dict:
         g = data[c].groupby("step")["drift_of_best"].mean()
         drift[c] = {"steps": g.index.tolist(), "mean_drift": g.values.tolist()}
         ax.plot(g.index, g.values, "-o", ms=3, color=COLORS[c], label=LABELS[c])
-    ax.axhline(0.85, ls="--", c="k", lw=0.8, label="drift cap (0.85)")
+    cap = _drift_cap(logs_dir)
+    ax.axhline(cap, ls="--", c="k", lw=0.8, label=f"drift cap ({cap:g})")
     ax.set_xlabel("refinement step")
     ax.set_ylabel("identity similarity of best (DINOv2)")
     ax.set_title("C4 — drift guardrail: identity retention vs step")

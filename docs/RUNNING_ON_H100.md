@@ -1,68 +1,80 @@
 # Running the C4 experiment on an H100 node
 
-This is a step-by-step runbook for the **C4 auto-refinement editing experiment** on a GPU node
-(H100 / A100). No Colab, no notebook — plain scripts. Target run: **10 steps, 100 images,
-4 conditions.**
+A complete, copy-paste runbook: **(A) set up the repo on the node → (B) what the experiment is →
+(C) exactly what to run → (D) outputs → (E) zip and send.** No Colab, no notebook — plain scripts.
 
-**What C4 tests:** using a *society of personas* as the critic that drives a 10-step image-editing
-loop produces better edits than (a) a single **blind VLM** critic, or (b) a fixed **"improve this
-image"** string. Each step re-edits the *original* image from an accumulated instruction and keeps a
-new candidate only if a held-out aesthetic model says it improved *and* it stays visually close to
-the source (drift guardrail). Full rationale: `research_plan.md` §7, §8.4, §14.19.
+The result of a run is **logs (JSON) + edited images (PNG) + analysis figures**, all under one
+`OUTPUT_ROOT`. At the end you zip that folder and send it over manually (Part E).
 
 ---
 
-## 0. Prerequisites (do these once, before touching the node)
+# Part A — Set up the repo on the node
 
-1. **A Hugging Face account with two things:**
-   - Access to the private dataset repos `savoji/EVA` and `savoji/PARA` (ask the owner to add you).
-   - **Accepted the license for the gated model** `black-forest-labs/FLUX.1-Kontext-dev` — open its
-     model page on huggingface.co and click *Agree*. Without this, the editor download 403s.
-2. **An HF token** (https://huggingface.co/settings/tokens, read scope is enough).
-3. **Node access** with at least one H100/A100 (80GB ideal; FLUX + Qwen-7B + CLIP/DINOv2 together
-   need ~45GB, so one 80GB GPU per shard is comfortable).
+## A.0 Prerequisites (once, per person)
 
----
+1. **Hugging Face account with:**
+   - read access to the private dataset repos **`savoji/PARA`** and **`savoji/EVA`** (ask the owner to add you), and
+   - **the gated model license accepted** for **`black-forest-labs/FLUX.1-Kontext-dev`** — open its model page on huggingface.co and click *Agree* (otherwise the editor download 403s).
+2. **An HF token** (https://huggingface.co/settings/tokens — read scope is enough).
+3. **A GPU node** with ≥1 H100/A100. 80 GB is ideal: FLUX + Qwen2-VL-7B + CLIP + DINOv2 together need ~45 GB, so **one 80 GB GPU per shard** is comfortable.
 
-## 1. Get the code
+## A.1 Clone
 
 ```bash
 git clone <repo-url> SyntheticAudience
 cd SyntheticAudience
 ```
 
-## 2. Set up the environment
+## A.2 Environment + data (one command)
 
 ```bash
-export HF_TOKEN=hf_xxxxxxxxxxxxxxxxx        # your token
+export HF_TOKEN=hf_xxxxxxxxxxxxxxxxx
 FETCH_DATA=1 scripts/setup_c4.sh
-```
-
-`setup_c4.sh`:
-- creates a venv (`.venv`, or uses `uv` if available),
-- installs **torch** (default CUDA-12 wheel; works on H100) then `requirements-gpu.txt`,
-- prints the GPUs it can see and verifies `diffusers` + the `editor` package import,
-- checks HF auth,
-- with `FETCH_DATA=1`, downloads EVA + PARA into `data/`.
-
-**HPC variants:**
-- Torch already provided by a module? `module load <cuda/torch>` then `SKIP_TORCH=1 scripts/setup_c4.sh`.
-- Need a specific CUDA wheel? `TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124 scripts/setup_c4.sh`.
-- Custom venv path: `VENV=/scratch/$USER/venvs/c4 scripts/setup_c4.sh`.
-
-Then activate it:
-```bash
 source .venv/bin/activate
 ```
 
-If you skipped `FETCH_DATA=1`, fetch data manually (needs `HF_TOKEN` + repo access):
-```bash
-python scripts/fetch_from_hf.py eva para
-```
+`setup_c4.sh` creates `.venv`, installs torch + `requirements-gpu.txt`, prints the visible GPUs,
+verifies `diffusers`/`editor` import, checks HF auth, and (with `FETCH_DATA=1`) downloads PARA + EVA
+into `data/`.
 
-## 3. Smoke test (2 images, ~2 minutes)
+**HPC variants:**
+- torch from a module: `module load <cuda/torch>` then `SKIP_TORCH=1 scripts/setup_c4.sh`
+- specific CUDA wheel: `TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124 scripts/setup_c4.sh`
+- venv elsewhere: `VENV=/scratch/$USER/venvs/c4 scripts/setup_c4.sh`
+- fetch data separately: `python scripts/fetch_from_hf.py para eva`
 
-Always do this first — it loads every model and writes a few edits, so failures surface fast.
+---
+
+# Part B — What the experiment is
+
+**Claim 4:** a *society of personas* used as the editing **critic** gives a better feedback signal
+than a single **blind VLM** critic or a fixed **"improve this image"** string. We test it as a
+**critic-quality ablation inside a 10-step auto-refinement editing loop** (rationale:
+`research_plan.md` §7, §8.4, §14.19).
+
+**The loop** (per image, 10 steps): the critic looks at the current best image → its complaints are
+distilled into one edit instruction → **FLUX.1-Kontext** re-edits the *original* image with the
+accumulated instruction (anchored, K candidates) → each candidate is scored by a **held-out LAION
+aesthetic model** (a different model family from the Qwen critic — *critic ≠ objective*) and a
+**DINOv2 identity/drift** check → the loop **commits a candidate only if it improves and stays above
+the drift cap** (accept-if-better). Best-so-far is monotone by construction.
+
+**The four conditions** (the ablation): `static` (fixed string) · `blind` (one generic VLM critique)
+· `society` (a panel of 10 PARA personas, aggregated — the method) · `reward_only` (oracle upper
+bound that maximizes the objective directly).
+
+**Baked-in defaults** (you do **not** pass these — they're already the defaults):
+- **10 steps**, **100 images** (50 PARA + 50 EVA, low-to-mid rated), **K=3** candidates, editor **FLUX.1-Kontext**.
+- **Visible-edit emphasis** appended to every editor prompt (*"Make this a clearly visible edit, not a subtle one…"*) + **guidance_scale 3.0**, so edits are pronounced rather than near-invisible.
+- **Drift cap 0.78** (loosened from 0.85 so the bolder edits actually commit while still guarding identity).
+
+---
+
+# Part C — Exactly what to run
+
+## C.1 Smoke test first (2 images, ~2 min) — always
+
+Loads every model and writes a few edits, so any failure surfaces immediately:
 
 ```bash
 python script/c4_refine.py --dataset eva --n-images 2 \
@@ -70,98 +82,126 @@ python script/c4_refine.py --dataset eva --n-images 2 \
     --output-root /scratch/$USER/c4_smoke
 ```
 
-Expect: models load, `[static]/[blind]/[society] ... checkpoint` lines, `Done.`, and PNGs under
-`/scratch/$USER/c4_smoke/edits/`. If this works, the full run will too.
+Expect: models load → `[static]/[blind]/[society] … checkpoint` lines → `Done.`, with PNGs under
+`/scratch/$USER/c4_smoke/edits/`. Glance at a couple of `edits/society/<id>/step*_best.png` to
+confirm edits are visibly changing. If this works, the full run will too.
 
-## 4. Full run — 10 steps, 100 images
+## C.2 The full experiment (this is the run to send)
 
 ```bash
 OUTPUT_ROOT=/scratch/$USER/c4_run1 scripts/run_c4.sh
 ```
 
-Defaults are exactly the target: **`STEPS=10`, `TOTAL_IMAGES=100`** (split 50/50 across EVA+PARA),
-`CONDITIONS=static,blind,society,reward_only`, `CANDIDATES=3`, `EDITOR=flux`. The script:
-- **auto-detects GPUs and shards the image set across all of them** (one shard per GPU, pinned via
-  `CUDA_VISIBLE_DEVICES`), waits for all shards,
-- is **`--resume`-safe**: re-run the exact same command to continue after a timeout/crash,
-- then runs the deliverables (figures + summary table).
+That's it. `run_c4.sh` uses the target defaults (10 steps, 100 images, all 4 conditions, K=3, FLUX,
+emphasis on, guidance 3.0, drift-cap 0.78), **auto-detects GPUs and shards the images across all of
+them** (one shard per GPU, pinned via `CUDA_VISIBLE_DEVICES`), is **`--resume`-safe** (re-run the
+same command to continue after a crash/timeout), and then generates the deliverable figures + table.
 
-**Common overrides** (env vars):
-```bash
-NGPU=4            scripts/run_c4.sh   # force 4-way shard (else auto)
-TOTAL_IMAGES=200  scripts/run_c4.sh   # bigger run
-DATASET=eva       scripts/run_c4.sh   # one dataset only (then TOTAL_IMAGES is that dataset's count)
-RUN_ANALYSIS=0    scripts/run_c4.sh   # skip figures (run them later, see §6)
-CONDITIONS=static,blind,society scripts/run_c4.sh   # drop the reward_only oracle
-```
-
-**Long runs / SLURM:** wrap it so it survives disconnects, e.g.
+**For a long run, detach it** so it survives disconnects:
 ```bash
 nohup env OUTPUT_ROOT=/scratch/$USER/c4_run1 scripts/run_c4.sh > c4_run1.out 2>&1 &
-# or inside an sbatch script; the loop is resumable so requeue is safe.
+tail -f c4_run1.out      # watch progress
+```
+(or drop the same command in an `sbatch` script — resumable, so requeue is safe.)
+
+**Optional overrides** (only if needed):
+```bash
+NGPU=4            OUTPUT_ROOT=… scripts/run_c4.sh   # force 4-way shard (else auto)
+TOTAL_IMAGES=200  OUTPUT_ROOT=… scripts/run_c4.sh   # bigger run
+CONDITIONS=static,blind,society OUTPUT_ROOT=… scripts/run_c4.sh   # drop the oracle
+EXTRA_ARGS="--drift-cap 0.80"   OUTPUT_ROOT=… scripts/run_c4.sh   # tighten identity guard
+RUN_ANALYSIS=0    OUTPUT_ROOT=… scripts/run_c4.sh   # skip figures (make them later, C.3)
 ```
 
-## 5. Where the outputs go
+## C.3 (Re)generate the figures/tables anytime
 
-Everything lands under `OUTPUT_ROOT`:
-
-```
-$OUTPUT_ROOT/
-  edits/<condition>/<image_id>/step*_cand*.png, step*_best.png   # every candidate + committed best
-  logs/c4_<condition>/*.json                                     # per-step records (sharded, resumable)
-  analysis/
-    c4.json            # all metrics (headline gains, AUC, win-rates, convergence, drift, diversity)
-    c4_summary.md      # the main results table
-    figs/
-      c4_trajectory.png   # best-so-far aesthetic vs step, per condition (+CI)
-      c4_headline.png     # mean gain per condition + gain-vs-drift scatter (reward-hack check)
-      c4_drift.png        # identity retention vs step (guardrail)
-      c4_diversity.png    # distinct complaints/step: society vs blind
-      c4_qualitative.png  # source vs best-edit-per-condition grid
-  stdout/                 # per-GPU run logs
-```
-
-The one-line headline is printed at the end and stored in `c4.json` under `society_vs_blind_auc`.
-
-## 6. (Re)generate the deliverables anytime
-
+Runs automatically at the end of C.2; to redo them (e.g. after copying the folder elsewhere):
 ```bash
 cd scripts/analysis
 python c4_trajectory.py  --output-root /scratch/$USER/c4_run1
 python c4_qualitative.py --output-root /scratch/$USER/c4_run1
 ```
 
-## 7. Getting results off the node
-
-Just copy `$OUTPUT_ROOT/analysis` (small) for the figures + table; copy `edits/` too if you want the
-images (large — thousands of PNGs). E.g. `rsync -a node:/scratch/$USER/c4_run1/analysis ./`.
+**Compute expectation:** 100 images × 4 conditions × 10 steps × 3 candidates ≈ **12k FLUX edits** +
+persona critiques. ~a few hours on one H100; divide by ~N across N GPUs (4 → well under an hour).
+`society` and `reward_only` are heaviest.
 
 ---
 
-## Compute expectation
+# Part D — Outputs (logs + images)
 
-100 images × 4 conditions × 10 steps × 3 candidates ≈ **12k FLUX edits** + the persona critiques.
-On a single H100 that's roughly a few hours; sharding across *N* GPUs divides it by ~*N* (4 GPUs →
-well under an hour). `society` and `reward_only` are the heaviest (society adds 10 persona critiques
-per step).
+Everything lands under `OUTPUT_ROOT`:
+
+```
+$OUTPUT_ROOT/
+  edits/<condition>/<image_id>/
+      step0_source.png, step*_cand*.png, step*_best.png   # source + every candidate + committed best
+  logs/c4_<condition>/
+      c4_<condition>*.json                                # summary (config, panel, drift_cap)
+      c4_<condition>*.part-*.json                         # per-step records (sharded, resumable)
+  analysis/
+      c4.json               # all metrics (gains, AUC, win-rates, convergence, drift, diversity)
+      c4_summary.md         # the main results table
+      figs/
+        c4_trajectory.png     # best-so-far aesthetic vs step (the headline)
+        c4_raw_objective.png  # RAW per-step objective (the fluctuating curve)
+        c4_headline.png       # mean gain per condition + gain-vs-drift scatter
+        c4_drift.png          # identity retention vs step (guardrail; cap line auto-matches the run)
+        c4_diversity.png      # distinct complaints/step: society vs blind
+        c4_qualitative.png    # source vs best-edit-per-condition grid
+  stdout/                    # per-GPU run logs
+```
+
+---
+
+# Part E — Zip and send
+
+The whole run is self-contained under `OUTPUT_ROOT`. Zip it and transfer manually.
+
+**Everything (logs + all images + analysis)** — biggest, has every edited PNG:
+```bash
+cd /scratch/$USER
+zip -r c4_run1_full.zip c4_run1
+# (tar is fine too:  tar -czf c4_run1_full.tar.gz c4_run1 )
+```
+
+**Lighter (logs + analysis only, no per-step images)** — small, enough to reproduce every number/figure:
+```bash
+cd /scratch/$USER
+zip -r c4_run1_logs.zip c4_run1/logs c4_run1/analysis
+```
+
+**Just the best images per condition** (skip the intermediate candidates) if you want visuals but not GBs:
+```bash
+cd /scratch/$USER
+zip -r c4_run1_bests.zip c4_run1/analysis $(find c4_run1/edits -name 'step*_best.png' -o -name 'step0_source.png')
+```
+
+Send `c4_run1_full.zip` (or the lighter ones) over your usual channel. On the receiving side it
+unzips to the same `c4_run1/` layout, and `scripts/analysis/c4_trajectory.py --output-root c4_run1`
+re-creates the figures from the logs.
+
+---
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| `403` / gated repo when loading FLUX | Accept the `FLUX.1-Kontext-dev` license on HF and make sure `HF_TOKEN` is exported. |
-| `HF_TOKEN is not set` during fetch | `export HF_TOKEN=...`; also confirm you have access to `savoji/EVA`, `savoji/PARA`. |
-| CUDA OOM | Use one 80GB GPU per shard (don't over-subscribe); reduce `--candidates`; or add `EXTRA_ARGS=--cpu-offload` (slower). |
-| torch can't see CUDA / wrong CUDA | Reinstall torch matching the node's CUDA: `TORCH_INDEX_URL=https://download.pytorch.org/whl/cuXXX scripts/setup_c4.sh`, or `SKIP_TORCH=1` after `module load`. |
-| Run died partway | Re-run the **same** `run_c4.sh` command — `--resume` skips finished images (logs + per-shard edit cache persist). |
-| A shard failed but others ran | Inspect `$OUTPUT_ROOT/stdout/c4_gpu*.log`; re-running resumes only the missing work. |
-| `No c4 logs found ...` from analysis | Point `--output-root` at the same dir you ran with; the loop must have produced `logs/c4_*` first. |
-| Blank images in the qualitative grid | Run the analysis on the node where the edits live (paths are resolved from the local `edits/`). |
+| `403` / gated repo when loading FLUX | Accept the `FLUX.1-Kontext-dev` license on HF; ensure `HF_TOKEN` is exported. |
+| `HF_TOKEN is not set` during fetch | `export HF_TOKEN=…`; confirm access to `savoji/PARA`, `savoji/EVA`. |
+| CUDA OOM | one 80 GB GPU per shard (don't over-subscribe); lower `--candidates`; or `EXTRA_ARGS=--cpu-offload` (slower). |
+| torch can't see CUDA / wrong CUDA | `TORCH_INDEX_URL=…cuXXX scripts/setup_c4.sh`, or `SKIP_TORCH=1` after `module load`. |
+| Run died partway | Re-run the **same** `run_c4.sh` command — `--resume` skips finished images (logs + per-shard cache persist). |
+| One shard failed, others ran | Check `$OUTPUT_ROOT/stdout/c4_gpu*.log`; re-running resumes only the missing work. |
+| Edits look too subtle | already mitigated (emphasis + guidance 3.0); if still timid, `EXTRA_ARGS="--drift-cap 0.72"` lets bolder edits commit. |
+| Images drift into a different scene | tighten: `EXTRA_ARGS="--drift-cap 0.82"`. |
+| `No c4 logs found …` from analysis | point `--output-root` at the folder that has `logs/c4_*`. |
 
 ## What "success" looks like
 
-`c4_summary.md` should show `society` with the highest mean final gain and a **win-rate over blind
-and static > 50%** (ideally with the AUC CI excluding 0), while the `c4_drift.png` guardrail holds
-(committed edits stay above the 0.85 identity cap) — i.e. society improves images rather than just
-transforming them. Sanity-check a few panels in `c4_qualitative.png` by eye: the gains are real only
-if the society column looks *better*, not merely *different*.
+In `analysis/c4_summary.md`: **society** has the highest mean final gain and a **win-rate over blind
+and static > 50%** (ideally the AUC CI excludes 0), while `c4_drift.png` shows committed edits staying
+above the **0.78** cap — i.e. society *improves* images rather than just *transforming* them.
+`c4_raw_objective.png` should visibly fluctuate (real edits happening), and `c4_trajectory.png` should
+rise. Eyeball a few `c4_qualitative.png` panels: the win is real only if the society column looks
+*better*, not merely *different*.

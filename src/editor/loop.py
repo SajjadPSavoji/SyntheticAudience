@@ -112,7 +112,7 @@ def run_refinement(
     save_dir: str,
     R: int = 10,
     K: int = 3,
-    drift_cap: float = 0.85,
+    drift_cap: float = 0.78,
     seed: int = 0,
     cache: Optional[EditCache] = None,
     reward_bank: Optional[List[str]] = None,

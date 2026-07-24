@@ -636,7 +636,7 @@ coverage, uncalibrated-run-then-calibrated-offline) data.
 | **C2 — structured signals** (difficulty, attribute votes, share/pref) | calibrated aggregate beats the prior on all 16 axes; PARA social signals carry +persona value; EVA difficulty validly tracks disagreement (ρ+0.14) but is group-unpredictable (§14.12.1–2) | 🟡 **mostly supported**, scoped honestly | same temp>0 re-run for the distributional half |
 | **Bias / fairness** (ethics) | calibrated judge fair on personality/age/expertise (gap ≤0.04) but large **nationality/region bias** (gap 0.50 / 0.23) (§14.12.5) | ⚠️ **flag + control for it** | net out national bias in C3; report in ethics appendix |
 | **Leakage** | artist-fame vs error ρ ≈ 0; no memorization; zero-shot ⇒ no AVA path (§14.12.6) | ✅ **clean** | memorization-probe (needs inference) as a belt-and-suspenders check |
-| **C3** — generalize to generated images, cross-culture | *no runs* (but LAPIS nationality separation §14.11c is the real-image precursor) | ⚪ **not started** | Rapidata runs; contingent on C1 separation being real |
+| **C3 (reframed)** — the *aggregation* transfers to generated images | Rapidata (§14.20): **C3a** aggregate corr r=+0.47 [0.42,0.52], panel acc 0.66 > 0.60 majority (lift CI excludes 0), first clean N-curve 0.59→0.66; **C3b** cross-cultural separation +0.00 (null) | 🟢 **C3a supported** / 🔴 C3b null | for C3b or society-vs-blind: re-run per appeal-scoring spec + a `blind` run |
 | **C4** — audience as editing critic (society vs blind-VLM vs static, 10-step loop; demographic-free — §14.19) | *no runs* (complaint-mining vocabulary looks usable, §14.12.7) | ⚪ **not started** | editor + held-out objective-ensemble loop |
 
 **Bottom line (updated after Tier 1).** The *supporting science* (Exp 0 + C2 — "the group is
@@ -921,7 +921,7 @@ structured-signal separation, emotion, C3, C4) all genuinely require the new run
 | **Response-style / calibration mechanism** | ✅ **characterized** | central-tendency: VLM uses 51–58% of human scale spread; calibration transfers across datasets (§14.13.2, 14.13.6) | — |
 | **Bias / fairness** | ⚠️ **flagged** | fair on personality/age; **nationality bias gap 0.50**, region 0.23 (§14.12.5) | net out in C3; ethics appendix |
 | **Leakage** | ✅ **clean** | artist-fame vs error ≈0; snapping a no-op; parse ≈100% (§14.12.6, 14.13.9) | optional memorization probe (needs inference) |
-| **C3** — cross-cultural on generated images | ⚪ **not started** | LAPIS nationality separation is the real-image precursor (§14.11c) | Rapidata runs |
+| **C3 (reframed)** — aggregation transfers to generated images | 🟢 **C3a supported** / 🔴 C3b null (§14.20) | C3a: aggregate corr r=+0.47, panel acc 0.66 > 0.60 majority, clean N-curve 0.59→0.66; C3b cross-cultural separation +0.00 | society-vs-blind / cross-cultural need appeal-scoring re-run + a `blind` run |
 | **C4** — audience as editing critic (society vs blind-VLM vs static; 10-step loop; demographic-free — §14.19) | ⚪ **not started** | complaint vocabulary looks usable (§14.12.7) | editor + held-out objective-ensemble runs |
 
 **The forward plan, in order.** Current-data analysis is **exhausted**; every remaining step needs
@@ -1121,6 +1121,62 @@ is simpler and stronger: *society-as-critic > blind-VLM-critic > static-string*,
 **Dropped:** the demographic C4-targeted / within-group win-rate, and EditReward-Bench as the C4
 objective. **Ordering unchanged:** C4 still follows C3 in the roadmap (§14.14), but it no longer
 *depends* on C3's between-group result — it is now runnable independently.
+
+### 14.20 C3 results + reframe — the aggregation mechanism transfers to generated images
+
+*Recorded 2026-07-17. Run: `rapidata_persona` (4 shards) in `data/results/rapidata_persona/`.
+Analysis: `scripts/analysis/c3_rapidata.py` → `results/c3.json` + `results/figs/c3_*.png`.*
+
+**What was actually run.** C3 was implemented as a **direct pairwise-choice replay** (not the
+appeal-scoring design of `docs/claim3_cross_cultural.md`): the frozen Qwen2-VL-7B, role-playing each
+real voter's **country**, is shown a pair and picks A or B, at **temperature 0.7**. 23,445 votes,
+898 pairs, 120 countries; every pair is **dalle-3 (image1) vs flux (image2)**; individual votes are
+replayed, so ≈1 human vote per (pair, country) but **~26 votes per pair** pooled.
+
+**The original C3 framing (cross-cultural *differences*) is not supported by this run, but a stronger
+and better-powered claim is — so C3 is reframed into two parts.**
+
+#### C3a (reframed HEADLINE) — the synthetic-audience *aggregation* transfers to generated images
+
+Pooling all of a pair's persona-predictions (the "society" panel) recovers which image the human
+**crowd** prefers, even though a single prediction is near-chance. This is the **C2 mechanism,
+demonstrated on generated images** — and it is the project's **first clean, rising N-curve** (the
+real-image runs were flat from temp-0 persona collapse, §14.5/§14.15; here temp-0.7 + genuinely
+diverse country personas + a pairwise task give real panel variance).
+
+| Metric | Value |
+|---|---|
+| Aggregate corr (panel win-rate vs crowd win-rate, 898 pairs) | **r = +0.466 [+0.415, +0.515]** |
+| Individual (1 vote) accuracy | 0.532 (≈ chance) |
+| **Panel-aggregate accuracy** predicting the crowd's preferred image | **0.659** |
+| always-flux majority prior | 0.600 |
+| aggregate − majority **lift** | **+0.056 [+0.008, +0.105]** (CI excludes 0) |
+| N-curve (accuracy vs panel size N) | 0.588 → 0.588 → 0.625 → 0.643 → **0.657** (N=1,2,5,10,20) |
+
+→ *"Aggregating a panel of frozen-VLM personas predicts the crowd's preference on AI-generated
+images better than any single judgment and beats the majority prior; the aggregation N-curve rises
+monotonically and saturates."* This validates the synthetic-audience aggregate as a real preference
+signal on generated content — the exact premise C4's editing loop assumes.
+
+#### C3b (honest negative, scoped) — cross-cultural *differentiation* does not transfer
+
+| Metric | Value | Read |
+|---|---|---|
+| **Pair-controlled between-country separation** | **+0.001 [−0.017, +0.020]** | clean null vs LAPIS C1 **+0.17** |
+| Naive cross-country corr | −0.39 | confounded (each country votes on different pairs) — discard |
+| Base pairwise accuracy | 0.532 < 0.550 majority | the raw A/B task is near-chance |
+
+The persona panel captures the **crowd-level** preference (C3a) but not the **between-country**
+differences (C3b). This is consistent with C2's thesis: aggregation cancels idiosyncratic noise and
+recovers the shared signal, even where the persona does **not** encode genuine group structure.
+Caveats on C3b: ≈1 human vote per (pair,country) attenuates any effect toward 0; dalle-3-vs-flux only;
+temp-0.7 pairwise replay, not the spec's deterministic appeal-scoring; **no `blind` run** delivered.
+
+**What we can vs. cannot claim from this data.** *Can:* aggregation/society ≫ single judgment on
+generated images, and the aggregate is a valid crowd-preference signal (C3a). *Cannot (needs more
+data):* society-vs-**blind** (no no-persona run), or cross-cultural differences (C3b null). To pursue
+either, re-run per `docs/claim3_cross_cultural.md` (appeal-scoring, temp 0, add `rapidata_blind`).
+Nothing here changes C1 (LAPIS real-art nationality separation still stands).
 
 ---
 

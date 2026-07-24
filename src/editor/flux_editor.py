@@ -10,21 +10,39 @@ All heavy imports (torch / diffusers) are **deferred into ``__init__``** so that
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional
 
 from persona.backend.base import ImageInput, load_image  # Pillow-only, import-safe
+
+# Instruction editors (esp. FLUX-Kontext) tend to make the *minimal* change that
+# satisfies an instruction, which yields tiny, near-invisible edits and nearly
+# flat objective/drift curves. This suffix pushes the editor to apply each edit
+# as a clearly visible change (while staying on the same subject/scene), so the
+# loop produces real movement to hill-climb over. Disable with emphasis="".
+DEFAULT_EDIT_EMPHASIS = (
+    "Make this a clearly visible edit, not a subtle one, "
+    "while keeping the same subject and scene."
+)
 
 
 class ImageEditor(ABC):
     """Turn one (image, instruction) into K candidate edits with fixed seeds."""
 
     name: str = "base"
+    emphasis: str = ""
 
     @abstractmethod
     def edit(self, image: ImageInput, instruction: str, *, k: int, seed: int) -> List:
         """Return ``k`` edited PIL images. Candidate ``i`` uses ``seed + i`` so the
         whole set is deterministic and cacheable."""
         raise NotImplementedError
+
+    def _compose(self, instruction: str) -> str:
+        """Append the visible-edit emphasis (if any) to the raw edit instruction."""
+        instr = (instruction or "").strip()
+        if not self.emphasis:
+            return instr
+        return f"{instr.rstrip('.')}. {self.emphasis}" if instr else self.emphasis
 
 
 class FluxKontextEditor(ImageEditor):
@@ -37,7 +55,8 @@ class FluxKontextEditor(ImageEditor):
     dtype:
         ``bfloat16`` is the right default on Ampere/Hopper (A100/L4).
     guidance_scale, num_inference_steps:
-        Kontext editing defaults (2.5 / 28) — a good speed/fidelity balance.
+        Kontext editing (3.0 / 28) — guidance nudged above the 2.5 stock default so
+        edits are more pronounced (pairs with the visible-edit emphasis suffix).
     cpu_offload:
         ``False`` on A100 (weights live on GPU). Set ``True`` on ~16-24GB cards
         to stream weights via ``enable_model_cpu_offload`` (slower but fits).
@@ -52,11 +71,13 @@ class FluxKontextEditor(ImageEditor):
         self,
         model_name: str = "black-forest-labs/FLUX.1-Kontext-dev",
         dtype=None,
-        guidance_scale: float = 2.5,
+        guidance_scale: float = 3.0,
         num_inference_steps: int = 28,
         cpu_offload: bool = False,
         max_side: int = 1024,
+        emphasis: Optional[str] = DEFAULT_EDIT_EMPHASIS,
     ) -> None:
+        self.emphasis = emphasis or ""
         import torch
         from diffusers import FluxKontextPipeline
 
@@ -86,12 +107,13 @@ class FluxKontextEditor(ImageEditor):
         import torch
 
         img = self._prep(image)
+        prompt = self._compose(instruction)
         out = []
         for i in range(k):
             gen = torch.Generator("cpu").manual_seed(seed + i)
             result = self.pipe(
                 image=img,
-                prompt=instruction,
+                prompt=prompt,
                 guidance_scale=self.guidance_scale,
                 num_inference_steps=self.num_inference_steps,
                 generator=gen,
@@ -113,7 +135,9 @@ class InstructPix2PixEditor(ImageEditor):
         guidance_scale: float = 7.0,
         num_inference_steps: int = 20,
         max_side: int = 768,
+        emphasis: Optional[str] = DEFAULT_EDIT_EMPHASIS,
     ) -> None:
+        self.emphasis = emphasis or ""
         import torch
         from diffusers import StableDiffusionInstructPix2PixPipeline
 
@@ -142,11 +166,12 @@ class InstructPix2PixEditor(ImageEditor):
         import torch
 
         img = self._prep(image)
+        prompt = self._compose(instruction)
         out = []
         for i in range(k):
             gen = torch.Generator("cpu").manual_seed(seed + i)
             result = self.pipe(
-                instruction,
+                prompt,
                 image=img,
                 image_guidance_scale=self.image_guidance_scale,
                 guidance_scale=self.guidance_scale,
