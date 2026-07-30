@@ -103,10 +103,26 @@ class FluxKontextEditor(ImageEditor):
             img = img.resize((round(w * scale), round(h * scale)))
         return img
 
+    # FluxKontextPipeline derives its output canvas from the `width`/`height`
+    # arguments, NOT from the reference image. Left unset they default to
+    # 1024x1024, so every edit comes back square whatever the source aspect --
+    # while the source keeps its own. Both the aesthetic objective and the
+    # DINOv2 drift metric then compare across that geometry change, which on
+    # measured data cost up to -0.47 aesthetic points on a 4:3 image before any
+    # content change was considered, making "improve the image" unwinnable.
+    # Passing the source aspect explicitly keeps the comparison honest.
+    _MULTIPLE_OF = 16   # pipeline snaps to vae_scale_factor * 2
+
+    def _out_size(self, img) -> tuple[int, int]:
+        w, h = img.size
+        m = self._MULTIPLE_OF
+        return max(m, w // m * m), max(m, h // m * m)
+
     def edit(self, image: ImageInput, instruction: str, *, k: int, seed: int) -> List:
         import torch
 
         img = self._prep(image)
+        width, height = self._out_size(img)
         prompt = self._compose(instruction)
         out = []
         for i in range(k):
@@ -114,6 +130,8 @@ class FluxKontextEditor(ImageEditor):
             result = self.pipe(
                 image=img,
                 prompt=prompt,
+                width=width,
+                height=height,
                 guidance_scale=self.guidance_scale,
                 num_inference_steps=self.num_inference_steps,
                 generator=gen,

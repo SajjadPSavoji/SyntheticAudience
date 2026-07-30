@@ -305,7 +305,7 @@ def analyze(logs_dir: str, analysis_dir: str) -> dict:
         gx = [finals[c][i]["drift_final"] for i in finals[c]]
         gy = [finals[c][i]["gain"] for i in finals[c]]
         axR.scatter(gx, gy, color=COLORS[c], label=LABELS[c], s=40, alpha=0.8, edgecolor="w")
-    axR.axvline(0.85, ls="--", c="k", lw=0.8, label="drift cap")
+    axR.axvline(cap, ls="--", c="k", lw=0.8, label=f"drift cap ({cap:g})")
     axR.set_xlabel("identity similarity of final best (DINOv2)")
     axR.set_ylabel("final aesthetic gain")
     axR.set_title("C4 — gain vs identity drift (real improvement vs transformation)")

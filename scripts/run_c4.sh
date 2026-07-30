@@ -8,6 +8,7 @@
 #   scripts/run_c4.sh                                  # 10 steps, 100 images, all GPUs
 #   OUTPUT_ROOT=/scratch/$USER/c4_run1 scripts/run_c4.sh
 #   NGPU=4 scripts/run_c4.sh                           # force 4-way shard
+#   GPUS=4,5,6,7 scripts/run_c4.sh                     # shard onto these physical GPUs
 #   TOTAL_IMAGES=200 STEPS=10 scripts/run_c4.sh
 #   RUN_ANALYSIS=0 scripts/run_c4.sh                   # skip the figures/table step
 #
@@ -19,6 +20,8 @@
 #   CONDITIONS=static,blind,society,reward_only
 #   CANDIDATES=3        edits generated per step
 #   EDITOR=flux         flux | instructpix2pix
+#   GPUS=""             explicit physical GPU ids to use, e.g. "4,5,6,7" (wins over NGPU).
+#                       Empty = use GPUs 0..NGPU-1.
 #   NGPU=auto           number of GPUs to shard across (auto = detect)
 #   RUN_ANALYSIS=1      run c4_trajectory.py + c4_qualitative.py after the run
 #   EXTRA_ARGS=""       extra flags forwarded to script/c4_refine.py
@@ -32,6 +35,7 @@ DATASET="${DATASET:-both}"
 CONDITIONS="${CONDITIONS:-static,blind,society,reward_only}"
 CANDIDATES="${CANDIDATES:-3}"
 EDITOR="${EDITOR:-flux}"
+GPUS="${GPUS:-}"
 NGPU="${NGPU:-auto}"
 RUN_ANALYSIS="${RUN_ANALYSIS:-1}"
 EXTRA_ARGS="${EXTRA_ARGS:-}"
@@ -43,15 +47,23 @@ else
   PER="$TOTAL_IMAGES"
 fi
 
-# Detect GPU count.
-if [ "$NGPU" = "auto" ]; then
-  if command -v nvidia-smi >/dev/null 2>&1; then
-    NGPU=$(nvidia-smi -L | wc -l | tr -d ' ')
-  else
-    NGPU=1
+# Resolve the device list. GPUS="4,5,6,7" pins the shards to those physical GPUs
+# (useful on a shared node); otherwise shard i runs on GPU i.
+if [ -n "$GPUS" ]; then
+  IFS=',' read -r -a GPU_IDS <<< "$GPUS"
+  NGPU=${#GPU_IDS[@]}
+else
+  if [ "$NGPU" = "auto" ]; then
+    if command -v nvidia-smi >/dev/null 2>&1; then
+      NGPU=$(nvidia-smi -L | wc -l | tr -d ' ')
+    else
+      NGPU=1
+    fi
   fi
+  [ "${NGPU:-0}" -lt 1 ] && NGPU=1
+  GPU_IDS=()
+  for g in $(seq 0 $((NGPU - 1))); do GPU_IDS+=("$g"); done
 fi
-[ "${NGPU:-0}" -lt 1 ] && NGPU=1
 
 STDOUT_DIR="$OUTPUT_ROOT/stdout"
 mkdir -p "$STDOUT_DIR"
@@ -62,7 +74,7 @@ echo "steps       : $STEPS"
 echo "images      : $TOTAL_IMAGES total  ($PER per dataset x $DATASET)"
 echo "conditions  : $CONDITIONS"
 echo "candidates  : $CANDIDATES   editor: $EDITOR"
-echo "GPUs        : $NGPU"
+echo "GPUs        : $NGPU  (devices: ${GPU_IDS[*]})"
 echo "================================================"
 
 # Common args to script/c4_refine.py. --resume makes the whole thing idempotent.
@@ -74,17 +86,25 @@ COMMON=(--dataset "$DATASET" --n-images "$PER" --conditions "$CONDITIONS"
 
 start=$(date +%s)
 if [ "$NGPU" -le 1 ]; then
-  echo "single-GPU run -> $STDOUT_DIR/c4.log"
+  # Only pin the device when GPUS was given explicitly; otherwise inherit the
+  # caller's CUDA_VISIBLE_DEVICES (original behaviour).
+  if [ -n "$GPUS" ]; then
+    echo "single-GPU run on GPU ${GPU_IDS[0]} -> $STDOUT_DIR/c4.log"
+    export CUDA_VISIBLE_DEVICES="${GPU_IDS[0]}"
+  else
+    echo "single-GPU run -> $STDOUT_DIR/c4.log"
+  fi
   python script/c4_refine.py "${COMMON[@]}" 2>&1 | tee "$STDOUT_DIR/c4.log"
 else
   echo "sharding across $NGPU GPUs (image round-robin, one shard per GPU)"
   pids=()
   for g in $(seq 0 $((NGPU - 1))); do
-    CUDA_VISIBLE_DEVICES="$g" python script/c4_refine.py "${COMMON[@]}" \
-        --shard "$g/$NGPU" > "$STDOUT_DIR/c4_gpu$g.log" 2>&1 &
+    dev="${GPU_IDS[$g]}"
+    CUDA_VISIBLE_DEVICES="$dev" python script/c4_refine.py "${COMMON[@]}" \
+        --shard "$g/$NGPU" > "$STDOUT_DIR/c4_gpu$dev.log" 2>&1 &
     pid=$!
     pids+=("$pid")
-    echo "  shard $g/$NGPU -> GPU $g (pid $pid)  log: $STDOUT_DIR/c4_gpu$g.log"
+    echo "  shard $g/$NGPU -> GPU $dev (pid $pid)  log: $STDOUT_DIR/c4_gpu$dev.log"
   done
   fail=0
   for pid in "${pids[@]}"; do wait "$pid" || fail=1; done

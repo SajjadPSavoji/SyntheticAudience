@@ -181,6 +181,11 @@ def _write_summary(summary_path: Path, condition, args, panel, rows):
         "objective_model": "improved-aesthetic-predictor (CLIP ViT-L/14)",
         "drift_backbone": "facebook/dinov2-base",
         "drift_cap": args.drift_cap,
+        # Edit boldness: these two decide how far candidates move from the source,
+        # and therefore how often the drift cap rejects them. Recorded so a run's
+        # commit rate can be read against the settings that produced it.
+        "edit_emphasis": args.edit_emphasis,
+        "guidance_scale": args.guidance_scale,
         "steps": args.steps,
         "candidates": args.candidates,
         "panel_size": len(panel),
@@ -225,6 +230,10 @@ def _parse_args() -> argparse.Namespace:
                    help="suffix appended to every editor prompt to force a clearly "
                         "visible change (default: a built-in bold-edit directive; "
                         "pass '' to disable).")
+    p.add_argument("--guidance-scale", type=float, default=None,
+                   help="editor guidance scale. Higher = bolder edits, which drift "
+                        "further from the source and are more likely to be rejected "
+                        "by --drift-cap (default: the editor's own, 3.0 for FLUX).")
     p.add_argument("--cpu-offload", action="store_true",
                    help="stream FLUX weights (use on <40GB GPUs; not needed on A100).")
     p.add_argument("--seed", type=int, default=0)
@@ -275,6 +284,8 @@ def main() -> None:
         editor_kwargs["cpu_offload"] = args.cpu_offload
     if args.edit_emphasis is not None:   # None => editor's built-in default directive
         editor_kwargs["emphasis"] = args.edit_emphasis
+    if args.guidance_scale is not None:  # None => editor's own default
+        editor_kwargs["guidance_scale"] = args.guidance_scale
     editor = build_editor(args.editor, **editor_kwargs)
     print("Loading aesthetic objective + drift metric...")
     objective = AestheticObjective()
