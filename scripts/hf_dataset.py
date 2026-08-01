@@ -38,24 +38,66 @@ RAW_PREFIX = "raw"
 
 
 class DatasetSpec:
-    """How one local dataset maps to its Hub repo. ``images_dir`` is the only
-    per-dataset knob: the folder (relative to data/<name>/) holding the images;
-    everything else in the dataset is treated as a verbatim file."""
+    """How one local tree maps to its Hub repo.
 
-    def __init__(self, name: str, images_dir: str):
+    Two shapes, both private repos carrying a ``layout_manifest.json`` so
+    ``fetch_from_hf.py`` can rebuild the local tree exactly:
+
+    * **corpus** (``images_dir`` set) — a source dataset. Its images become a
+      ``datasets`` ``images`` config (parquet with the original bytes embedded,
+      browsable in the Hub viewer); everything else is stored verbatim. The
+      parquet detour exists to dodge the Hub's 10k-files-per-directory and
+      128-commits-per-hour limits, which flat image corpora blow through.
+    * **verbatim** (``images_dir=None``) — an output tree such as the AutoPolish
+      results, uploaded file-for-file with its directory layout intact. Those
+      limits do not bind here (deepest directory holds ~100 files), and the
+      layout *is* the artifact: the analysis scripts read it by path via
+      ``--output-root``. Uploading from disk also avoids staging a parquet copy
+      of every image locally.
+
+    ``sources`` maps repo prefixes to project-relative local paths, so one repo
+    can gather several trees (results/ and data/results/ for AutoPolish).
+    """
+
+    def __init__(self, name: str, images_dir: str | None = None,
+                 sources: list[tuple[str, str]] | None = None,
+                 description: str = ""):
         self.name = name
         self.repo_id = f"{HF_OWNER}/{name.upper()}"
         self.images_dir = images_dir
+        # default: the single data/<name>/ tree, mounted at the repo root
+        self.sources = sources or [("", f"data/{name}")]
+        self.description = description
+
+    @property
+    def verbatim_only(self) -> bool:
+        """True when there is no parquet images config, just the file tree."""
+        return self.images_dir is None
 
     @property
     def local_dir(self) -> Path:
-        return DATA_DIR / self.name
+        """Primary local tree (the only one, for single-source datasets)."""
+        return ROOT / self.sources[0][1]
+
+    def roots(self) -> list[tuple[str, Path]]:
+        """(repo prefix, absolute local path) for every tree in this dataset."""
+        return [(prefix, ROOT / rel) for prefix, rel in self.sources]
 
 
 DATASETS: dict[str, DatasetSpec] = {
     "lapis": DatasetSpec("lapis", images_dir="images"),
     "eva": DatasetSpec("eva", images_dir="images"),
     "para": DatasetSpec("para", images_dir="imgs"),
+    # Experiment outputs, not a source corpus: analysis artifacts plus the raw
+    # per-run logs and edited images the analysis scripts are pointed at.
+    "autopolish": DatasetSpec(
+        "autopolish",
+        sources=[("analysis", "results"), ("runs", "data/results")],
+        description=(
+            "AutoPolish experiment outputs: cached analysis JSONs and figures, "
+            "plus raw per-run judge logs and edited images."
+        ),
+    ),
 }
 
 

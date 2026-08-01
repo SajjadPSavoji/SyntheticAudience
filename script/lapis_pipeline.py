@@ -94,10 +94,13 @@ from para_pipeline import (  # noqa: E402  (needs sys.path tweak above)
     _parse_shard,
     _part_path,
     _print_dimension_summary,
+    _prune_stale_parts,
     _read_log_and_results,
     _shard_suffix,
     choose_images,
     compute_metrics,
+    generate_with_retry,
+    is_generation_error,
     parse_para_rating as parse_rating,  # generic over ScoreDimensions
 )
 
@@ -565,7 +568,12 @@ def analyze_log(log_paths: list[Path], output: Path | None = None) -> None:
     merged: dict[tuple, dict] = {}
     for res in per_log_results:
         for r in res:
-            merged.setdefault(_task_key(r), r)
+            key = _task_key(r)
+            prior = merged.get(key)
+            # First log wins, except that a real response always beats a
+            # <generation error> placeholder from an earlier log.
+            if prior is None or (is_generation_error(prior) and not is_generation_error(r)):
+                merged[key] = r
     results = list(merged.values())
 
     metrics = compute_metrics(results, dims, seed=int(logs[0].get("seed", 0)))
@@ -704,6 +712,17 @@ def run(args: argparse.Namespace) -> None:
         # Reuse the prior chunk size so part boundaries stay consistent.
         chunk_size = int(prior_log.get("chunk_size", args.chunk_size))
         descriptions = {**prior_log.get("users", {}), **descriptions}
+        # A <generation error> placeholder is a failed rating, not a completed one:
+        # drop it so its task is re-run rather than skipped forever.
+        n_failed = sum(1 for r in results if is_generation_error(r))
+        if n_failed:
+            results = [r for r in results if not is_generation_error(r)]
+            if prior_chunked:
+                # Dropping records shifts every later record's chunk index, so the
+                # parts must be rewritten now (not at the first checkpoint) — a crash
+                # in between would otherwise leave the placeholders on disk.
+                _flush_chunks(output_path, results, chunk_size, 0)
+                _prune_stale_parts(output_path, _n_parts(len(results), chunk_size))
         done = {_task_key(r) for r in results}
         before = len(tasks)
         tasks = [t for t in tasks if _task_key(t) not in done]
@@ -711,6 +730,8 @@ def run(args: argparse.Namespace) -> None:
             f"Resuming from {output_path}: {before - len(tasks)} ratings already "
             f"done, {len(tasks)} remaining."
         )
+        if n_failed:
+            print(f"  ({n_failed} failed ratings dropped and queued for re-run.)")
     else:
         chunk_size = args.chunk_size
         suffix = _shard_suffix(args.shard)
@@ -749,30 +770,14 @@ def run(args: argparse.Namespace) -> None:
         gen_kwargs["do_sample"] = False
 
     def _run_batch(batch: list[dict]) -> list[str]:
-        """Generate for a batch, falling back to one-at-a-time if the fused call
-        blows up (a single unreadable image or a transient OOM shouldn't cost the
-        whole batch)."""
         images = [LAPIS_IMAGE_DIR / t["imageName"] for t in batch]
         if args.persona_blind:
             sys_prompts = [LAPIS_GENERIC_SYSTEM_PROMPT] * len(batch)
         else:
             sys_prompts = [lapis_system_prompt(descriptions[t["userId"]]) for t in batch]
-        try:
-            return backend.generate_batch(
-                system_prompts=sys_prompts,
-                images=images,
-                prompts=[question] * len(batch),
-                **gen_kwargs,
-            )
-        except Exception as exc:
-            print(f"  batch failed ({exc}); retrying items individually", flush=True)
-            out = []
-            for sp, im in zip(sys_prompts, images):
-                try:
-                    out.append(backend.generate(sp, im, question, **gen_kwargs))
-                except Exception as inner:
-                    out.append(f"<generation error: {inner}>")
-            return out
+        return generate_with_retry(
+            backend, sys_prompts, images, [question] * len(batch), gen_kwargs
+        )
 
     total = len(tasks)
     n_before_run = len(results)

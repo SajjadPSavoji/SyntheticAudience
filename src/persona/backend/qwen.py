@@ -7,7 +7,7 @@ from typing import List, Optional, Sequence
 import torch
 from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
 
-from .base import ImageInput, VLMBackend, load_image
+from .base import ImagesInput, VLMBackend, load_images
 
 # TF32 matmuls are a free ~1.5x on Ampere/Hopper and don't measurably change the
 # generated text at bf16; enable once at import time.
@@ -65,7 +65,7 @@ class QwenVLBackend(VLMBackend):
     def generate(
         self,
         system_prompt: str,
-        image: ImageInput,
+        image: ImagesInput,
         prompt: str,
         max_new_tokens: Optional[int] = None,
         **generate_kwargs,
@@ -78,12 +78,16 @@ class QwenVLBackend(VLMBackend):
     def generate_batch(
         self,
         system_prompts: Sequence[str],
-        images: Sequence[ImageInput],
+        images: Sequence[ImagesInput],
         prompts: Sequence[str],
         max_new_tokens: Optional[int] = None,
         **generate_kwargs,
     ) -> List[str]:
-        pil_images = [load_image(im) for im in images]
+        # Each item may carry one image or several (Qwen2-VL interleaves them):
+        # the chat template gets one {"type": "image"} placeholder per image, and
+        # the processor gets every image of the batch as one flat list, which it
+        # binds to the placeholders in order.
+        per_item = [load_images(im) for im in images]
 
         texts = [
             self.processor.apply_chat_template(
@@ -91,21 +95,19 @@ class QwenVLBackend(VLMBackend):
                     {"role": "system", "content": sp},
                     {
                         "role": "user",
-                        "content": [
-                            {"type": "image"},
-                            {"type": "text", "text": pr},
-                        ],
+                        "content": [{"type": "image"} for _ in item]
+                        + [{"type": "text", "text": pr}],
                     },
                 ],
                 tokenize=False,
                 add_generation_prompt=True,
             )
-            for sp, pr in zip(system_prompts, prompts)
+            for sp, pr, item in zip(system_prompts, prompts, per_item)
         ]
 
         inputs = self.processor(
             text=texts,
-            images=pil_images,
+            images=[image for item in per_item for image in item],
             return_tensors="pt",
             padding=True,
         ).to(self.model.device)

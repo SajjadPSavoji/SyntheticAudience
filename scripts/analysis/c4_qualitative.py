@@ -21,6 +21,7 @@ from PIL import Image
 import argparse
 
 from common import REPO
+import theme
 
 DEFAULT_OUTPUT_ROOT = os.path.join(REPO, "outputs", "c4_auto_research")
 CONDITIONS = ["static", "blind", "society", "reward_only"]
@@ -45,6 +46,28 @@ def _final_best(df: pd.DataFrame) -> pd.DataFrame:
     return df.loc[idx].set_index("image_id")
 
 
+def _source_path(edits_dir: str, img_id: str) -> str | None:
+    """The pre-edit source: the saved step0 if present, else the dataset original
+    (image ids are '<dataset>__<id>', originals live under data/<dataset>/images/)."""
+    p = os.path.join(edits_dir, "society", img_id, "step0_source.png")
+    if os.path.exists(p):
+        return p
+    if "__" in img_id:
+        ds, iid = img_id.split("__", 1)
+        base = os.path.join(REPO, "data", ds)
+        # iid may already include the extension (PARA) or not (EVA); datasets nest
+        # images differently, so search recursively for the first match.
+        hits = glob.glob(os.path.join(base, "**", iid), recursive=True)
+        if not hits and not os.path.splitext(iid)[1]:
+            for ext in (".jpg", ".jpeg", ".png", ".JPG"):
+                hits = glob.glob(os.path.join(base, "**", iid + ext), recursive=True)
+                if hits:
+                    break
+        if hits:
+            return hits[0]
+    return None
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="C4 qualitative before/after grid.")
     ap.add_argument("--output-root", default=DEFAULT_OUTPUT_ROOT,
@@ -52,6 +75,13 @@ def main() -> None:
     ap.add_argument("--logs-dir", default=None, help="override <root>/logs.")
     ap.add_argument("--edits-dir", default=None, help="override <root>/edits.")
     ap.add_argument("--analysis-dir", default=None, help="override <root>/analysis.")
+    ap.add_argument("--skip", type=int, default=0,
+                    help="skip this many top-ranked images before showing (default 0).")
+    ap.add_argument("--n-show", type=int, default=N_SHOW, help="rows to show.")
+    ap.add_argument("--out-name", default="c4_qualitative.png", help="output PNG name.")
+    ap.add_argument("--title", default="", help="optional suptitle.")
+    ap.add_argument("--society-top", action="store_true",
+                    help="only show images where the society critic scores highest.")
     args = ap.parse_args()
     logs_dir = args.logs_dir or os.path.join(args.output_root, "logs")
     edits_dir = args.edits_dir or os.path.join(args.output_root, "edits")
@@ -69,19 +99,41 @@ def main() -> None:
     base = finals["static"]["best_obj"] if "static" in present else soc * 0
     common = soc.index.intersection(base.index) if "static" in present else soc.index
     gain = (soc.loc[common] - base.loc[common]).sort_values(ascending=False)
-    picks = list(gain.index[:N_SHOW])
+
+    def _complete(iid: str) -> bool:
+        if not _source_path(edits_dir, iid):
+            return False
+        for c in present:
+            if iid not in finals[c].index:
+                return False
+            bp = os.path.basename(str(finals[c].loc[iid]["best_path"]))
+            if not os.path.exists(os.path.join(edits_dir, c, iid, bp)):
+                return False
+        if args.society_top:  # keep only rows where society is the (tied) best
+            best = max(finals[c].loc[iid]["best_obj"] for c in present)
+            if finals["society"].loc[iid]["best_obj"] < best - 1e-9:
+                return False
+        return True
+
+    # take the next fully-renderable images after `skip` (skip any with missing cells)
+    picks: list[str] = []
+    for iid in list(gain.index)[args.skip:]:
+        if _complete(iid):
+            picks.append(iid)
+        if len(picks) >= args.n_show:
+            break
 
     # true source aesthetic = step-0 best_obj (identical across conditions)
     start_score = (data["society"][data["society"]["step"] == 0]
                    .set_index("image_id")["best_obj"].to_dict())
 
+    theme.apply()
     cols = ["source"] + present
     fig, axes = plt.subplots(len(picks), len(cols),
                              figsize=(2.6 * len(cols), 2.6 * len(picks)))
     axes = np.atleast_2d(axes)
     for r, img_id in enumerate(picks):
-        # source lives next to the society run's step0 file
-        src_path = os.path.join(edits_dir, "society", img_id, "step0_source.png")
+        src_path = _source_path(edits_dir, img_id)
         for cc, col in enumerate(cols):
             ax = axes[r, cc]
             ax.axis("off")
@@ -104,10 +156,11 @@ def main() -> None:
                 ax.set_title(title, fontsize=8)
             else:
                 ax.set_title(title, fontsize=8)
-    fig.suptitle("C4 — original vs best edit per condition (top society gains)", y=1.0)
+    if args.title:
+        fig.suptitle(args.title, y=1.0, fontsize=11)
     fig.tight_layout()
-    out = os.path.join(figs, "c4_qualitative.png")
-    fig.savefig(out, dpi=130, bbox_inches="tight")
+    out = os.path.join(figs, args.out_name)
+    fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"wrote {out}  ({len(picks)} images)")
 

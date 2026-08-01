@@ -14,3 +14,14 @@ __pycache__/
 # The whole data/ folder is fetched from Hugging Face, never committed to git.
 data/
 results/
+
+# LaTeX build intermediates (docs/paper/autoedit.pdf IS committed; the rest rebuilds)
+*.aux
+*.fdb_latexmk
+*.fls
+*.out
+*.synctex.gz
+docs/paper/*.log
+
+# Jupyter
+.ipynb_checkpoints/

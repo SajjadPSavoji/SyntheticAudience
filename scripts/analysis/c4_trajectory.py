@@ -26,12 +26,12 @@ import numpy as np
 import pandas as pd
 
 from common import REPO, _json_default
+import theme
 
 # Same default root as script/c4_refine.py; override with --output-root.
 DEFAULT_OUTPUT_ROOT = os.path.join(REPO, "outputs", "c4_auto_research")
 CONDITIONS = ["static", "blind", "society", "reward_only"]
-COLORS = {"static": "#9e9e9e", "blind": "#1f77b4", "society": "#d62728",
-          "reward_only": "#2ca02c"}
+COLORS = dict(theme.C4)
 LABELS = {"static": "static string", "blind": "blind VLM", "society": "society",
           "reward_only": "reward-only (oracle)"}
 N_BOOT = 1000
@@ -146,6 +146,7 @@ def analyze(logs_dir: str, analysis_dir: str) -> dict:
     report: dict = {"conditions": present, "n_boot": N_BOOT}
     mats: dict = {}
 
+    theme.apply()
     # 1) best-so-far trajectory + CI bands -----------------------------------
     fig, ax = plt.subplots(figsize=(7, 4.5))
     traj: dict = {}
@@ -157,15 +158,14 @@ def analyze(logs_dir: str, analysis_dir: str) -> dict:
         traj[c] = {"steps": steps, "mean": mean.tolist(),
                    "ci_lo": ci[:, 0].tolist(), "ci_hi": ci[:, 1].tolist(),
                    "n_images": int(M.shape[0])}
-        ax.plot(steps, mean, "-o", ms=3, color=COLORS[c], label=LABELS[c])
-        ax.fill_between(steps, ci[:, 0], ci[:, 1], color=COLORS[c], alpha=0.15)
+        ax.plot(steps, mean, "-o", ms=6, color=COLORS[c], label=LABELS[c], zorder=3)
+        ax.fill_between(steps, ci[:, 0], ci[:, 1], color=COLORS[c], alpha=0.13, zorder=1)
     ax.set_xlabel("refinement step")
     ax.set_ylabel("best-so-far aesthetic score")
-    ax.set_title("C4 — audience-guided editing: best-so-far vs step")
-    ax.legend(frameon=False)
+    ax.legend(loc="lower right"); ax.grid(True, axis="y"); ax.set_axisbelow(True)
     fig.tight_layout()
     traj_path = os.path.join(figs, "c4_trajectory.png")
-    fig.savefig(traj_path, dpi=130)
+    fig.savefig(traj_path, dpi=200)
     plt.close(fig)
     report["trajectory"] = traj
     report["_figure_trajectory"] = os.path.relpath(traj_path, analysis_dir)
@@ -289,30 +289,34 @@ def analyze(logs_dir: str, analysis_dir: str) -> dict:
 
     # headline figure: (left) mean final gain per condition; (right) drift-vs-gain
     # scatter — the honesty check that gains aren't just identity drift.
+    theme.apply()
     fig, (axL, axR) = plt.subplots(1, 2, figsize=(11, 4.2))
     xs = list(range(len(present)))
     means = [headline[c]["mean_gain"] for c in present]
     errs = [[headline[c]["mean_gain"] - headline[c]["gain_ci"][0] for c in present],
             [headline[c]["gain_ci"][1] - headline[c]["mean_gain"] for c in present]]
-    axL.bar(xs, means, color=[COLORS[c] for c in present])
-    axL.errorbar(xs, means, yerr=errs, fmt="none", ecolor="k", capsize=4, lw=1)
+    axL.bar(xs, means, color=[COLORS[c] for c in present], zorder=3)
+    axL.errorbar(xs, means, yerr=errs, fmt="none",
+                 ecolor=theme.INK, capsize=4, lw=1.1, capthick=1.1)
     axL.set_xticks(xs)
-    axL.set_xticklabels([LABELS[c] for c in present], rotation=15, ha="right")
-    axL.set_ylabel("mean final aesthetic gain")
-    axL.set_title("C4 — improvement over source (95% CI)")
-    axL.axhline(0, c="k", lw=0.6)
+    axL.set_xticklabels([LABELS[c].replace(" (", "\n(") for c in present],
+                        rotation=0, ha="center")
+    axL.set_ylabel("mean final aesthetic gain (95% CI)")
+    axL.axhline(0, c=theme.MUTED, lw=0.9)
+    axL.grid(True, axis="y"); axL.set_axisbelow(True)
+    cap = _drift_cap(logs_dir)
     for c in present:
         gx = [finals[c][i]["drift_final"] for i in finals[c]]
         gy = [finals[c][i]["gain"] for i in finals[c]]
-        axR.scatter(gx, gy, color=COLORS[c], label=LABELS[c], s=40, alpha=0.8, edgecolor="w")
-    axR.axvline(0.85, ls="--", c="k", lw=0.8, label="drift cap")
+        axR.scatter(gx, gy, color=COLORS[c], label=LABELS[c], s=40, alpha=0.8,
+                    edgecolor="white", linewidth=0.6, zorder=3)
+    axR.axvline(cap, ls="--", c=theme.MUTED, lw=1.2, label=f"drift cap ({cap:g})")
     axR.set_xlabel("identity similarity of final best (DINOv2)")
     axR.set_ylabel("final aesthetic gain")
-    axR.set_title("C4 — gain vs identity drift (real improvement vs transformation)")
-    axR.legend(frameon=False, fontsize=8)
+    axR.legend(loc="upper left", bbox_to_anchor=(0.06, 1.0)); axR.grid(True); axR.set_axisbelow(True)
     fig.tight_layout()
     head_path = os.path.join(figs, "c4_headline.png")
-    fig.savefig(head_path, dpi=130)
+    fig.savefig(head_path, dpi=200)
     plt.close(fig)
     report["_figure_headline"] = os.path.relpath(head_path, analysis_dir)
 

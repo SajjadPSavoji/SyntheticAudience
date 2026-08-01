@@ -26,6 +26,7 @@ from scipy import stats
 from sklearn.isotonic import IsotonicRegression
 
 from common import OUT_DIR, PRIMARY_DIM, ensure_out, load_run, write_json
+import theme
 
 DATASETS = {"PARA": "para_full", "EVA": "eva_full", "LAPIS": "lapis_full"}
 RNG = np.random.default_rng(0)
@@ -87,25 +88,41 @@ def analyze(dataset: str, run_name: str) -> dict:
 def plot(report: dict) -> str:
     figdir = os.path.join(OUT_DIR, "figs")
     os.makedirs(figdir, exist_ok=True)
+    theme.apply()
     dss = [k for k in report if not k.startswith("_")]
-    fig, axes = plt.subplots(1, len(dss), figsize=(4 * len(dss), 4), sharey=False)
+    fig, axes = plt.subplots(1, len(dss), figsize=(4 * len(dss), 4), sharey=True)
     if len(dss) == 1:
         axes = [axes]
+    from matplotlib.patches import Patch
+    labels = ["indiv\nraw", "indiv\ncal", "group\nraw", "group\ncal", "pop\nprior"]
+    colors = [theme.RAW, theme.CAL, theme.RAW, theme.CAL, theme.PRIOR]
+    # individual bars carry an oblique-dash hatch; group/prior bars are solid.
+    hatches = ["///", "///", "", "", ""]
     for ax, ds in zip(axes, dss):
         m = report[ds]
-        labels = ["indiv\nraw", "indiv\ncal", "group\nraw", "group\ncal", "pop\nprior"]
         vals = [m["raw"]["individual_mae"], m["calibrated"]["individual_mae"],
                 m["raw"]["group_mae"], m["calibrated"]["group_mae"],
                 m["calibrated"]["population_prior_group_mae"]]
-        colors = ["#c44", "#4a4", "#c44", "#4a4", "#48c"]
-        ax.bar(labels, vals, color=colors)
+        bars = ax.bar(labels, vals, color=colors, zorder=3)
+        for b, h in zip(bars, hatches):
+            if h:
+                b.set_hatch(h)
+                b.set_edgecolor("black")
+                b.set_linewidth(1.3)
         ax.set_title(ds)
         ax.set_ylabel("MAE (normalized)")
-        ax.grid(True, axis="y", alpha=0.3)
-    fig.suptitle("B4 — effect of isotonic calibration on MAE (red=raw, green=calibrated)")
+        ax.grid(True, axis="y")
+        ax.set_axisbelow(True)
+    # two-part legend: color = raw/calibrated/prior; pattern = individual/group.
+    handles = [Patch(facecolor=theme.RAW, label="raw"),
+               Patch(facecolor=theme.CAL, label="calibrated"),
+               Patch(facecolor=theme.PRIOR, label="population prior"),
+               Patch(facecolor="#c9c9c6", hatch="///", edgecolor="black", linewidth=1.3, label="individual"),
+               Patch(facecolor="#c9c9c6", label="group")]
+    fig.legend(handles=handles, loc="upper center", ncol=5, bbox_to_anchor=(0.5, 1.04))
     fig.tight_layout()
     path = os.path.join(figdir, "b4_calibration.png")
-    fig.savefig(path, dpi=130)
+    fig.savefig(path, dpi=200)
     plt.close(fig)
     return path
 

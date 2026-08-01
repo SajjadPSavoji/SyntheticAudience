@@ -16,6 +16,11 @@ from PIL import Image
 
 ImageInput = Union[str, Path, Image.Image]
 
+# One turn's visual input: a single image, or several to show side by side (e.g.
+# a pairwise A-vs-B comparison). Backends whose chat template can interleave
+# multiple images accept the sequence form; the rest see only single images.
+ImagesInput = Union[ImageInput, Sequence[ImageInput]]
+
 
 def load_image(image: ImageInput) -> Image.Image:
     """Return an RGB :class:`PIL.Image.Image` from a path or an image object."""
@@ -24,6 +29,17 @@ def load_image(image: ImageInput) -> Image.Image:
     else:
         pil = Image.open(image)
     return pil.convert("RGB")
+
+
+def load_images(images: ImagesInput) -> List[Image.Image]:
+    """Normalize one turn's visual input to a list of RGB images.
+
+    A bare image (path or PIL object) becomes a one-element list, so callers and
+    backends can treat the single- and multi-image cases uniformly.
+    """
+    if isinstance(images, (str, Path, Image.Image)):
+        return [load_image(images)]
+    return [load_image(image) for image in images]
 
 
 class VLMBackend(ABC):
@@ -37,7 +53,7 @@ class VLMBackend(ABC):
     def generate(
         self,
         system_prompt: str,
-        image: ImageInput,
+        image: ImagesInput,
         prompt: str,
         max_new_tokens: Optional[int] = None,
         **generate_kwargs,
@@ -45,15 +61,16 @@ class VLMBackend(ABC):
         """Run the VLM on one image and return the decoded text response.
 
         ``system_prompt`` sets the persona, ``prompt`` is the user turn, and
-        ``image`` is shown to the model. Extra ``generate_kwargs`` are
-        forwarded to the underlying generation call.
+        ``image`` is shown to the model — either a single image or a sequence of
+        them, for backends that can interleave several in one turn. Extra
+        ``generate_kwargs`` are forwarded to the underlying generation call.
         """
         raise NotImplementedError
 
     def generate_batch(
         self,
         system_prompts: Sequence[str],
-        images: Sequence[ImageInput],
+        images: Sequence[ImagesInput],
         prompts: Sequence[str],
         max_new_tokens: Optional[int] = None,
         **generate_kwargs,

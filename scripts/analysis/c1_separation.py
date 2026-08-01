@@ -30,6 +30,7 @@ from scipy.stats import wasserstein_distance
 
 from calibration import cross_fit_calibrate, dedup
 from common import OUT_DIR, PRIMARY_DIM, ensure_out, load_run, write_json
+import theme
 from steerability import _levels
 
 SLICES = {
@@ -139,23 +140,36 @@ def plot(report: dict) -> str:
     figdir = os.path.join(OUT_DIR, "figs")
     os.makedirs(figdir, exist_ok=True)
     dss = [k for k in report if not k.startswith("_")]
+    theme.apply()
     fig, ax = plt.subplots(figsize=(7, 4))
-    x = np.arange(len(dss)); w = 0.35
+    x = np.arange(len(dss)); w = 0.36
     full = [report[d]["overall"]["full_separation"]["corr"] or 0 for d in dss]
     blind = [report[d]["overall"]["blind_separation"]["corr"] or 0 for d in dss]
     f_err = np.array([[f - report[d]["overall"]["full_separation"]["ci95"][0],
                        report[d]["overall"]["full_separation"]["ci95"][1] - f]
                       for f, d in zip(full, dss)]).T
-    ax.bar(x - w/2, full, w, label="persona (full)", yerr=f_err, capsize=4, color="#4a7")
-    ax.bar(x + w/2, blind, w, label="no-persona (blind)", color="#c77")
-    ax.axhline(0, color="#888", lw=0.7)
+    from matplotlib.patches import Patch
+    from matplotlib.legend_handler import HandlerTuple
+    full_colors = [theme.DATASET.get(d, theme.PRIMARY) for d in dss]
+    ax.bar(x - w/2, full, w, yerr=f_err,
+           error_kw=dict(ecolor=theme.INK, lw=1.1, capthick=1.1), capsize=4,
+           color=full_colors, zorder=3)
+    ax.bar(x + w/2, blind, w, color=theme.NEUTRAL, zorder=3)
+    ax.axhline(0, color=theme.MUTED, lw=0.9)
     ax.set_xticks(x); ax.set_xticklabels(dss)
-    ax.set_ylabel("between-group separation  corr(pred gap, obs gap)")
-    ax.set_title("C1 — between-group separation (calibrated, pooled over slices)")
-    ax.legend(); ax.grid(True, axis="y", alpha=0.3)
+    ax.set_ylabel("between-group separation\ncorr(predicted gap, observed gap)")
+    # persona key = the three dataset colors side by side; gray = no-persona control.
+    persona_key = tuple(Patch(facecolor=theme.DATASET.get(d, theme.PRIMARY)) for d in dss)
+    control_key = Patch(facecolor=theme.NEUTRAL)
+    ax.legend([persona_key, control_key],
+              ["persona panel (one color per dataset)", "no-persona control"],
+              handler_map={tuple: HandlerTuple(ndivide=None)},
+              handlelength=2.6, loc="upper left")
+    ax.grid(True, axis="y")
+    ax.set_axisbelow(True)
     fig.tight_layout()
     path = os.path.join(figdir, "c1_separation.png")
-    fig.savefig(path, dpi=130); plt.close(fig)
+    fig.savefig(path, dpi=200); plt.close(fig)
     return path
 
 

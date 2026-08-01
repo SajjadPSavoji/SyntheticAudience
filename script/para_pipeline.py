@@ -785,7 +785,12 @@ def analyze_log(log_paths: list[Path], output: Optional[Path] = None) -> None:
     for res in per_log_results:
         _remap_legacy_results(res, keys)
         for r in res:
-            merged.setdefault(_task_key(r), r)
+            key = _task_key(r)
+            prior = merged.get(key)
+            # First log wins, except that a real response always beats a
+            # <generation error> placeholder from an earlier log.
+            if prior is None or (is_generation_error(prior) and not is_generation_error(r)):
+                merged[key] = r
     results = list(merged.values())
 
     metrics = compute_metrics(results, dims, seed=int(logs[0].get("seed", 0)))
@@ -831,6 +836,94 @@ def analyze_log(log_paths: list[Path], output: Optional[Path] = None) -> None:
     print_summary(metrics)
 
 
+GENERATION_ERROR_PREFIX = "<generation error"
+
+
+def is_generation_error(record_or_text) -> bool:
+    """True if this rating never got a real response out of the model.
+
+    Ratings whose generation failed are stored with a ``<generation error: ...>``
+    placeholder in place of the response. They parse to ``pred_* = None`` and are
+    dropped from every metric, so they are *not* completed work: resume re-runs
+    them, and a merge prefers a real response over a placeholder."""
+    text = (
+        record_or_text.get("raw_response", "")
+        if isinstance(record_or_text, dict)
+        else record_or_text
+    )
+    return isinstance(text, str) and text.startswith(GENERATION_ERROR_PREFIX)
+
+
+def generate_with_retry(
+    backend,
+    system_prompts: list[str],
+    images: list,
+    prompts: list[str],
+    gen_kwargs: dict,
+    attempts: int = 3,
+    backoff: float = 10.0,
+) -> list[str]:
+    """Generate one batch, surviving the transient CUDA failures of a shared GPU.
+
+    When the GPUs are shared with other jobs, a neighbour ballooning its memory
+    makes our kernels fail from *inside* cuDNN/cuBLAS — surfacing as e.g.
+    ``mha_graph.execute(...) to be true, but got false`` or
+    ``CUBLAS_STATUS_EXECUTION_FAILED`` rather than as a clean torch OOM. Those
+    failures are transient: the identical batch succeeds once the memory is back.
+
+    So each failed attempt first releases our own cached blocks — retrying while
+    the caching allocator still holds the memory that starved the call is
+    pointless — then waits (doubling) before trying again, as a batch and then
+    item by item. Only after every attempt is exhausted does an item fall back to
+    a ``<generation error>`` placeholder, which resume treats as not-done.
+    """
+    import torch  # deferred: --analyze-only must work without torch installed
+
+    def _attempt(fn, what: str):
+        for i in range(1, attempts + 1):
+            try:
+                return fn()
+            except Exception as exc:
+                torch.cuda.empty_cache()
+                if i == attempts:
+                    raise
+                wait = backoff * 2 ** (i - 1)
+                print(
+                    f"  {what} failed ({type(exc).__name__}: {exc}); "
+                    f"attempt {i}/{attempts}, retrying in {wait:.0f}s",
+                    flush=True,
+                )
+                time.sleep(wait)
+
+    n = len(images)
+    try:
+        return _attempt(
+            lambda: backend.generate_batch(
+                system_prompts=system_prompts,
+                images=images,
+                prompts=prompts,
+                **gen_kwargs,
+            ),
+            f"batch of {n}",
+        )
+    except Exception as exc:
+        print(
+            f"  batch of {n} failed {attempts}x ({exc}); falling back to one item at a time",
+            flush=True,
+        )
+
+    out: list[str] = []
+    for sp, im, pr in zip(system_prompts, images, prompts):
+        try:
+            out.append(
+                _attempt(lambda: backend.generate(sp, im, pr, **gen_kwargs), f"item {im}")
+            )
+        except Exception as inner:
+            print(f"  giving up on {im}: {inner}", flush=True)
+            out.append(f"{GENERATION_ERROR_PREFIX}: {inner}>")
+    return out
+
+
 def _task_key(record: dict) -> tuple:
     return (record["sessionId"], record["imageName"], record["userId"])
 
@@ -862,6 +955,18 @@ def _part_paths(summary_path: Path) -> list[Path]:
 
 def _n_parts(n_ratings: int, chunk_size: int) -> int:
     return (n_ratings + chunk_size - 1) // chunk_size
+
+
+def _prune_stale_parts(summary_path: Path, n_keep: int) -> None:
+    """Delete result-chunk files past the ``n_keep``-th.
+
+    _read_log_and_results globs the parts rather than trusting the manifest, so a
+    log that *shrank* — resume dropping failed ratings — would otherwise re-read
+    the orphaned tail chunks of the longer previous run."""
+    for pf in _part_paths(summary_path):
+        k = int(pf.stem.rsplit("part-", 1)[1])
+        if k > n_keep:
+            pf.unlink()
 
 
 def _flush_chunks(
@@ -1045,6 +1150,17 @@ def run(args: argparse.Namespace) -> None:
         prior_chunked = "result_parts" in prior_log
         # Reuse the prior chunk size so part boundaries stay consistent.
         chunk_size = int(prior_log.get("chunk_size", args.chunk_size))
+        # A <generation error> placeholder is a failed rating, not a completed one:
+        # drop it so its task is re-run rather than skipped forever.
+        n_failed = sum(1 for r in results if is_generation_error(r))
+        if n_failed:
+            results = [r for r in results if not is_generation_error(r)]
+            if prior_chunked:
+                # Dropping records shifts every later record's chunk index, so the
+                # parts must be rewritten now (not at the first checkpoint) — a crash
+                # in between would otherwise leave the placeholders on disk.
+                _flush_chunks(output_path, results, chunk_size, 0)
+                _prune_stale_parts(output_path, _n_parts(len(results), chunk_size))
         done = {_task_key(r) for r in results}
         before = len(tasks)
         tasks = [t for t in tasks if _task_key(t) not in done]
@@ -1052,6 +1168,8 @@ def run(args: argparse.Namespace) -> None:
             f"Resuming from {output_path}: {before - len(tasks)} ratings already "
             f"done, {len(tasks)} remaining."
         )
+        if n_failed:
+            print(f"  ({n_failed} failed ratings dropped and queued for re-run.)")
     else:
         chunk_size = args.chunk_size
         # A per-shard suffix keeps parallel processes from clobbering one file.
@@ -1096,31 +1214,14 @@ def run(args: argparse.Namespace) -> None:
         gen_kwargs["do_sample"] = False
 
     def _run_batch(batch: list[dict]) -> list[str]:
-        """Generate for a batch, falling back to one-at-a-time if the fused call
-
-        blows up (a single unreadable image or a transient OOM shouldn't cost the
-        whole batch)."""
         images = [PARA_IMAGE_DIR / t["sessionId"] / t["imageName"] for t in batch]
         if args.persona_blind:
             sys_prompts = [PARA_GENERIC_SYSTEM_PROMPT] * len(batch)
         else:
             sys_prompts = [para_system_prompt(descriptions[t["userId"]]) for t in batch]
-        try:
-            return backend.generate_batch(
-                system_prompts=sys_prompts,
-                images=images,
-                prompts=[question] * len(batch),
-                **gen_kwargs,
-            )
-        except Exception as exc:
-            print(f"  batch failed ({exc}); retrying items individually", flush=True)
-            out = []
-            for sp, im in zip(sys_prompts, images):
-                try:
-                    out.append(backend.generate(sp, im, question, **gen_kwargs))
-                except Exception as inner:
-                    out.append(f"<generation error: {inner}>")
-            return out
+        return generate_with_retry(
+            backend, sys_prompts, images, [question] * len(batch), gen_kwargs
+        )
 
     total = len(tasks)
     n_before_run = len(results)

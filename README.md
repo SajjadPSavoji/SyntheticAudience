@@ -1,150 +1,186 @@
-# Synthetic Audiences for Creative AI
+# AutoPolish: Refining Images with Frozen Synthetic Audiences
 
-*Persona-conditioned multimodal judges that predict human reactions and guide image editing.*
+*A frozen vision-language model role-plays a panel of viewers, their aggregated reaction
+predicts how a real group will respond to an image, and that panel then drives an autonomous
+image-editing loop.*
 
-When we ask "is this image good?" we are not asking for a single number — appeal is
-**collective**, a distribution of reactions across viewers who differ in culture, training,
-and taste. This project simulates that collective reaction with an **off-the-shelf, frozen**
-vision-language model (VLM): we prompt it to role-play many viewers ("personas"), run it once
-per persona, and **aggregate** the reactions into a predicted *group* reaction. That
-panel-of-personas-then-aggregate step is the whole method — no VLM is ever trained or
-fine-tuned.
-
-> **Model note.** The headline backbone is a **local, frozen `Qwen/Qwen2-VL-7B-Instruct`**.
-> The original proposal called models "serverlessly"; that requirement was dropped (a *frozen*
-> model is the claim — local vs. hosted is an implementation detail). See `research_plan.md`
-> §14.8.
-
-Full scientific write-up: [`PROPOSAL.md`](PROPOSAL.md). Step-by-step plan, interim results, and
-the running experiment log: [`research_plan.md`](research_plan.md).
+📄 **Paper:** [`docs/paper/autoedit.pdf`](docs/paper/autoedit.pdf) (6 pages + supplement)
+· source: [`docs/paper/autoedit.tex`](docs/paper/autoedit.tex)
+🎮 **Try it:** [`notebook/autopolish_playground.ipynb`](notebook/autopolish_playground.ipynb)
+🔁 **Reproduce:** [`REPRODUCING.md`](REPRODUCING.md)
 
 ---
 
-## The four claims
+## The idea in one paragraph
 
-| | Claim | Status |
+Ask ten people to rate a photograph and you rarely get one answer. That disagreement is usually
+averaged away as noise; we treat it as the signal. The honest answer to *"how will this image
+land?"* is the **shape** of a population's reaction — its center, its spread, and how it shifts
+between groups of viewers. We prompt a **frozen, off-the-shelf** VLM to role-play one specific
+viewer at a time, described only in plain text (age, education, art familiarity, personality,
+nationality), run it once per persona, and aggregate. **No weights are ever trained.** That
+"panel of personas, then aggregate" step is the entire predictor.
+
+One measurement organizes everything: an individual rating sits near the noise ceiling, so
+predicting it is hard *by construction*, while the group aggregate is predictable precisely
+because the idiosyncratic part of each reaction cancels in the average.
+
+---
+
+## Headline results
+
+| | Result | Where |
 |---|---|---|
-| **Exp 0** | Individual taste sits near the noise ceiling; the *group mean* is highly reliable (ICC(1) 0.19–0.47 vs ICC(k) 0.84–0.96). This motivates aggregation. | ✅ proven |
-| **C1** | **(headline)** A panel of personas, aggregated, reproduces a group's reaction — and crucially the *differences between groups* — better than a no-persona judge or the population-mean prior. | 🟡 demonstrated on LAPIS (nationality/age/art-interest), weak on PARA, fails on EVA |
-| **C2** | *Why* C1 works: individual error ≫ group error, and error falls then saturates as the panel grows (the N-curve). Calibrated group prediction beats the population prior on all datasets. | 🟡 mean/rank proven; the aggregation-mechanism N-curve still needs a decoding fix |
-| **C3** | It generalizes zero-shot from real images to **AI-generated** ones, across cultures (Rapidata per-country votes). | ⚪ active workstream |
-| **C4** | The simulated audience is a **useful, non-circular editing signal**: a *society* of personas gives better edit feedback than a single blind VLM or a fixed instruction, inside an auto-refinement loop. | 🟢 implemented + smoke-tested (see below) |
+| **Ceiling** | A single human rating shares only **19–47%** of its variance with other raters (ICC(1) 0.470 / 0.223 / 0.188 on PARA / EVA / LAPIS). The group mean is reliable to **ICC(k) 0.84–0.96**. Persona attributes explain just **1–4%** of individual taste. | paper §5.1 |
+| **Group differences** | On paintings the persona panel recovers real between-group divergence at **r = +0.166** (95% CI [0.150, 0.181]) against a persona-blind control at +0.016. Signal tracks persona richness: LAPIS > PARA > EVA. | paper §5.2 |
+| **Transfer to generated images** | On 23,445 crowd votes over 898 AI-generated pairs, panel-vs-crowd correlation **+0.466**, accuracy **0.659** vs a 0.600 majority prior, and accuracy rises monotonically with panel size (**0.588 → 0.657** for N = 1 → 20). | paper §5.2 |
+| **AutoPolish** | A frozen synthetic-audience critic drives a non-circular, identity-preserving editing loop: held-out aesthetic gain **+0.170** (95% CI [0.136, 0.207]), identity 0.951, and **3.1×** richer feedback than a generic critic (3.12 vs 1.00 distinct complaints/step). | paper §5.3 |
 
-C4 was reframed (2026-07-15, `research_plan.md` §14.19) into a **demographic-free critic-quality
-ablation** inside a 10-step auto-refinement editing loop. That is the code in `src/editor/` +
-`script/c4_refine.py` and the focus of the runbook below.
+**Reported negatives** (paper §6, in full): the panel-size curve is flat on *real* images
+(greedy decoding collapses the panel); cross-country differentiation on generated images is null
+and under-powered; the critic ablation ties on a *generic* aesthetic objective; thin personas
+(EVA) break persona claims; and the judge carries a nationality/region calibration bias (gaps
+0.50 / 0.23) that is measured and controlled rather than passed along.
+
+---
+
+## How AutoPolish works
+
+```
+  Image ─┐
+         ├─> Frozen VLM ×N personas ─> aggregate + calibrate ─> group reaction
+Persona ─┘                                                       (mean, spread, complaints)
+ cards                                                                     │
+                                                                complaints steer the critic
+                                                                           ▼
+  current best ──> audience critic ──> image editor ──> held-out judge ──> commit if better
+     image          (complaints        (FLUX.1-        (LAION aesthetic     (loop ×10,
+                    -> instruction)     Kontext)        + DINOv2 identity)   anchored re-edit)
+```
+
+The party that **proposes** edits is never the party that **grades** them — different model
+families, and the grader never sees the instruction. That is what makes the loop non-circular.
+
+---
+
+## Quickstart
+
+```bash
+git clone <this repo> && cd SyntheticAudience
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt          # CPU: analysis + data sync
+
+# zero-data smoke test (needs the GPU env below)
+python script/opinions.py
+```
+
+Two environments, on purpose:
+
+| Env | Install | Runs |
+|---|---|---|
+| **Analysis** (CPU) | `requirements.txt` | the 33-script re-analysis suite, figure generation, HF sync. `import editor` works without a GPU stack (imports are deferred). |
+| **Inference** (GPU) | `requirements-gpu.txt` + torch, or `scripts/setup_c4.sh` | the VLM judge, FLUX editor, the full AutoPolish loop. ~40 GB VRAM for the full loop; the notebook's demos fit in ~16 GB. |
+
+Start with [`notebook/autopolish_playground.ipynb`](notebook/autopolish_playground.ipynb) — it
+runs a persona panel and one AutoPolish step on example images, and needs no private data.
 
 ---
 
 ## Repository layout
 
+> **Note the two directories.** `script/` holds **experiment drivers** (things that produce
+> results); `scripts/` holds **tooling** (things that move or analyze results). The names are
+> historical and every path in `research_plan.md` depends on them, so they were left as-is.
+
 ```
-PROPOSAL.md            scientific proposal (idea, claims, positioning)
-research_plan.md       the build plan + interim results + running log (source of truth)
-README.md              this file
-requirements.txt       minimal analysis/data env (no GPU stack)
-requirements-gpu.txt   heavy GPU stack for inference + C4 (torch installed separately)
+docs/paper/            the paper: autoedit.tex + autoedit.pdf + figs/  (rebuild: latexmk -pdf autoedit.tex)
+REPRODUCING.md         step-by-step reproduction, tiered by what you have access to
+research_plan.md       build plan, statistical endpoints, and the full interim-results log (§14)
+PROPOSAL.md            the original scientific proposal
+docs/architecture.md   how the code fits together + the non-obvious decisions
 
 src/
-  persona/             frozen VLM judge + persona role-play  (Qwen2-VL / LLaVA backends)
-  editor/              C4 auto-refinement loop: editor (FLUX), aesthetic objective,
-                       drift guardrail, critics (static/blind/society), loop engine
-script/
+  persona/             frozen VLM judge + persona role-play (Qwen2-VL / LLaVA backends)
+  editor/              AutoPolish loop: critics, FLUX editor, aesthetic objective,
+                       DINOv2 drift guardrail, refinement engine
+  pipeline.py          generic "CSV of personas -> one image" demo
+
+script/                EXPERIMENT DRIVERS
   {para,eva,lapis}_pipeline.py   replay real raters as VLM personas -> data/results/*
-  c4_refine.py                   C4 auto-refinement driver (the editing loop)
-scripts/
-  fetch_from_hf.py / push_to_hf.py   sync data/ to/from private HF dataset repos
-  setup_c4.sh / run_c4.sh            one-command GPU setup + full C4 run  (see RUNNING_ON_H100.md)
-  pull_c4_from_drive.sh             pull a C4 run from Google Drive via rclone
-  analysis/                         re-analysis suite (Exp0, C1, C2, calibration, C4 figures, ...)
-data/                  git-ignored; datasets + run outputs, fetched from HF
-results/               git-ignored; analysis JSON + figures
-notebook/c4_colab.ipynb            Colab runner for C4 (A100)
-docs/                  per-dataset notes, protocols, claim specs
-```
+  rapidata_pipeline.py           PAIRWISE: replay real preference voters on generated-image
+                                 pairs (the cross-cultural / generated-image transfer result)
+  c4_refine.py                   the AutoPolish loop driver (the paper's headline system)
+  claim4_pipeline.py             the earlier single-persona self-refine ablation
+  {pixel,webscrap}_pipeline.py   judge unlabeled image corpora (no ground truth)
+  opinions.py                    3-persona smoke test, no dataset needed
+  export_results.py              stitch a sharded run log into one JSON
 
-`data/` and `results/` are **git-ignored** — nothing large or license-restricted is committed.
+scripts/               TOOLING
+  analysis/                      33-script re-analysis suite -> results/*.json + results/figs/
+  analysis/paper_figs.py         main-text composite figures (print-size type)
+  analysis/theme.py              the shared figure palette
+  {push,fetch}_from_hf.py        sync data/ and results/ to private HF dataset repos
+  setup_c4.sh / run_c4.sh        one-command GPU setup + full AutoPolish run
+
+notebook/
+  autopolish_playground.ipynb    START HERE — panel + one edit step + headline numbers
+  c4_colab.ipynb                 Colab runner for a full AutoPolish run (A100)
+  *_EDA.ipynb                    per-dataset exploratory analysis
+  *_results.ipynb                per-dataset run results
+  *_vs_groundtruth.ipynb         persona predictions against the real ratings
+
+data/                  git-ignored — datasets + raw run outputs, fetched from HF
+results/               git-ignored — analysis JSON + figures, fetched from HF
+```
 
 ---
 
-## Data
+## Data and artifacts
 
-Three real-image rating datasets (each image rated by ~25–35 real people) plus generated-image
-preferences for C3:
+Nothing large or license-restricted is committed. Everything lives in **private Hugging Face
+dataset repos** and is rehydrated on demand:
 
-| Dataset | What | Used for | Source |
+| Repo | What | Restores to |
+|---|---|---|
+| `savoji/PARA` | 4,000 photos, 1–5 aesthetic + 8 sub-axes, Big-Five personas | `data/para/` |
+| `savoji/EVA` | 4,070 photos (AVA subset), 0–10 score + 4 attributes | `data/eva/` |
+| `savoji/LAPIS` | 4,000 paintings, 0–100 rating, nationality | `data/lapis/` |
+| `savoji/AUTOPOLISH` | **all experiment outputs** — 46 analysis JSONs/figures + 2,322 raw run logs and edited images (~2.2 GB) | `results/` + `data/results/` |
+
+```bash
+cp .env.example .env          # then set HF_TOKEN (HF_OWNER=savoji is already there)
+python scripts/fetch_from_hf.py autopolish      # results only  (~2.2 GB, needs ~4.5 GB free)
+python scripts/fetch_from_hf.py para eva lapis  # source images (large)
+```
+
+These repos are **private** — the AutoPolish edits are derivatives of the PARA and EVA
+photographs and inherit their terms. You need to be granted read access.
+
+---
+
+## Reproducing
+
+Three tiers, cheapest first. Full detail in [`REPRODUCING.md`](REPRODUCING.md).
+
+| Tier | Needs | Cost | Reproduces |
 |---|---|---|---|
-| **PARA** | photos, 1–5 aesthetic + 8 sub-axes, Big-Five personas | Exp0, C1, C2, C4 personas | private HF `savoji/PARA` |
-| **EVA** | photos (AVA subset), 0–10 score + 4 attributes | Exp0, C1, C2, C4 sources | private HF `savoji/EVA` (CC0) |
-| **LAPIS** | paintings, 0–100 rating, nationality | Exp0, C1, C2, C3 precursor | private HF `savoji/LAPIS` |
-| **Rapidata** | per-country votes on generated images | C3 | public HF (pulled) |
+| **1 — Figures + tables** | CPU, `savoji/AUTOPOLISH` | minutes | every number and figure in the paper, from cached analysis JSONs |
+| **2 — Re-analysis** | CPU, `savoji/AUTOPOLISH` | ~1 hour | those JSONs themselves, re-derived from the raw run logs |
+| **3 — Full runs** | 1–8 GPUs, source datasets | days | the raw logs, from scratch: judge runs + the AutoPolish loop |
 
-Datasets are stored in **private Hugging Face dataset repos** and rehydrated into `data/` with:
-
-```bash
-python scripts/fetch_from_hf.py eva para lapis     # needs HF_TOKEN + access to the repos
-```
-
-Copy `.env.example` to `.env` and set `HF_TOKEN` (and `HF_OWNER=savoji`). You must have been
-granted read access to the `savoji/*` dataset repos.
-
-Local layout after fetch: `data/eva/images/<id>.jpg`, `data/para/imgs/<session>/<name>.jpg`,
-`data/lapis/images/<name>.jpg`, with ratings under each dataset's `annotation/` or `data/`.
+All three tiers are complete: every experiment in the paper has its generating script in
+`script/`, including the Rapidata cross-cultural run and the self-refine ablation.
 
 ---
 
-## Environments
+## Citation
 
-There are two, on purpose:
+The paper is under anonymous review; please cite the arXiv version when it is posted. Until
+then, refer to `docs/paper/autoedit.pdf`.
 
-- **Analysis / data env** (`requirements.txt`) — no GPU. Runs the re-analysis suite in
-  `scripts/analysis/` and the data fetch. The `editor` package is import-safe here (heavy
-  imports are deferred), so you can develop without a GPU.
-- **GPU env** (`requirements-gpu.txt` + torch) — runs the VLM judge, FLUX editor, and the whole
-  C4 loop. Set up with `scripts/setup_c4.sh` (see the H100 runbook).
+## License
 
----
-
-## Running things
-
-### Persona judge over a dataset (produces `data/results/*`)
-```bash
-python script/eva_pipeline.py  --n-images 1000 --output data/logs/eva_full.json
-python script/para_pipeline.py --n-images 2000
-python script/lapis_pipeline.py --n-images 4000
-```
-Each replays real raters as personas (`full`) or a no-persona control (`--persona-blind`) and
-writes sharded JSON logs.
-
-### Re-analysis suite (no GPU)
-```bash
-cd scripts/analysis
-python exp0_ceiling.py      # Exp 0 variance decomposition / ceiling
-python c1_separation.py     # C1 between-group separation (the headline)
-python c2_ncurve.py         # C2 aggregate-vs-individual gap + N-curve
-python calibration.py       # post-hoc calibration
-# ... 28 scripts total; outputs -> results/*.json + results/figs/*.png
-```
-See `research_plan.md` §14 for what each one found.
-
-### C4 — the auto-refinement editing loop (GPU)
-The headline runnable of this repo. See **[`docs/RUNNING_ON_H100.md`](docs/RUNNING_ON_H100.md)**
-for the full runbook. In short:
-```bash
-scripts/setup_c4.sh                                    # one-time env setup
-OUTPUT_ROOT=/scratch/$USER/c4_run1 scripts/run_c4.sh   # 10 steps, 100 images, all GPUs
-```
-This runs three critic conditions (`static` / `blind` / `society`) + a `reward_only` oracle
-through a 10-step **anchored-re-edit + accept-if-better** loop, then produces the deliverables:
-best-so-far trajectory curves, a headline gain + drift-vs-gain figure, a summary table, and a
-qualitative before/after grid under `$OUTPUT_ROOT/analysis/`.
-
----
-
-## Key documents
-
-- [`PROPOSAL.md`](PROPOSAL.md) — the idea, the four claims, related work.
-- [`research_plan.md`](research_plan.md) — build plan, statistical endpoints, and the full
-  interim-results log (§14). The current source of truth for status.
-- [`docs/RUNNING_ON_H100.md`](docs/RUNNING_ON_H100.md) — coworker runbook for the GPU node.
-- [`docs/claim3_cross_cultural.md`](docs/claim3_cross_cultural.md) — the active C3 spec.
+Code in this repository is available for research use. The datasets it consumes (PARA, EVA,
+LAPIS, Rapidata) carry their own licenses and are **not** redistributed here — see
+[`docs/para.md`](docs/para.md), [`docs/eva.md`](docs/eva.md), and [`docs/lapis.md`](docs/lapis.md)
+for each dataset's source and terms.

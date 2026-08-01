@@ -31,7 +31,9 @@ from pathlib import Path
 from datasets import Dataset, Image
 from huggingface_hub import HfApi
 
-from hf_dataset import DATASETS, MANIFEST_NAME, RAW_PREFIX, DatasetSpec, get_token, resolve, selected
+from hf_dataset import (
+    DATASETS, MANIFEST_NAME, RAW_PREFIX, ROOT, DatasetSpec, get_token, resolve, selected,
+)
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tif", ".tiff"}
 
@@ -63,7 +65,103 @@ def _verbatim(spec: DatasetSpec) -> list[Path]:
     return out
 
 
-def push_one(api: HfApi, token: str, spec: DatasetSpec) -> None:
+def _tree_files(root: Path) -> list[Path]:
+    """Every non-junk file under `root`, sorted."""
+    return sorted(
+        p for p in root.rglob("*")
+        if p.is_file() and not _junk(p.relative_to(root))
+    )
+
+
+def _dataset_card(spec: DatasetSpec, counts: list[tuple[str, Path, int, int]]) -> str:
+    """Minimal card for verbatim repos (no push_to_hub to generate one for us)."""
+    rows = "\n".join(
+        f"| `{RAW_PREFIX}/{prefix}/` | `{rel}` | {n:,} | {mb:,.0f} MB |"
+        for prefix, rel, n, mb in counts
+    )
+    return f"""---
+license: other
+viewer: false
+tags:
+  - autopolish
+  - computational-aesthetics
+  - experiment-outputs
+---
+
+# {spec.name.upper()}
+
+{spec.description}
+
+This repo holds **experiment outputs**, not a source corpus. Files are stored
+verbatim with their directory layout intact, because the analysis scripts in
+`scripts/analysis/` read them by path (for example
+`c4_trajectory.py --output-root <runs>/c4_run2`).
+
+| Repo prefix | Restores to | Files | Size |
+|---|---|---|---|
+{rows}
+
+`layout_manifest.json` records that mapping. To rebuild the local trees:
+
+```bash
+python scripts/fetch_from_hf.py {spec.name}
+```
+
+The edited images are derivatives of the PARA and EVA photographs, so this repo
+is **private** and inherits those datasets' terms.
+"""
+
+
+def push_verbatim(api: HfApi, spec: DatasetSpec, reset: bool) -> None:
+    """Upload each source tree file-for-file under raw/<prefix>/, layout intact."""
+    counts = []
+    for prefix, root in spec.roots():
+        if not root.exists() or not any(root.iterdir()):
+            raise RuntimeError(f"{root} is missing or empty")
+        files = _tree_files(root)
+        mb = sum(p.stat().st_size for p in files) / 1e6
+        counts.append((prefix, str(root.relative_to(ROOT)), len(files), mb))
+        print(f"  {prefix}/ <- {root.relative_to(ROOT)}: {len(files):,} files, {mb:,.0f} MB")
+
+    if reset:
+        api.delete_repo(repo_id=spec.repo_id, repo_type="dataset", missing_ok=True)
+    api.create_repo(repo_id=spec.repo_id, repo_type="dataset", private=True, exist_ok=True)
+
+    manifest_files: dict[str, list[str]] = {}
+    for prefix, root in spec.roots():
+        files = _tree_files(root)
+        manifest_files[prefix] = [str(p.relative_to(root)) for p in files]
+        print(f"  uploading {prefix}/ ({len(files):,} files)...")
+        api.upload_folder(
+            folder_path=str(root), repo_id=spec.repo_id, repo_type="dataset",
+            path_in_repo=f"{RAW_PREFIX}/{prefix}",
+            ignore_patterns=["**/.*", ".*", "**/__pycache__/**"],
+            commit_message=f"Upload {prefix} tree ({len(files)} files)",
+        )
+
+    manifest = {
+        "name": spec.name,
+        "images_dir": None,
+        "sources": [[prefix, rel] for prefix, rel in spec.sources],
+        "files": manifest_files,
+    }
+    api.upload_file(
+        path_or_fileobj=BytesIO(json.dumps(manifest, indent=2).encode()),
+        path_in_repo=MANIFEST_NAME, repo_id=spec.repo_id, repo_type="dataset",
+    )
+    api.upload_file(
+        path_or_fileobj=BytesIO(_dataset_card(spec, counts).encode()),
+        path_in_repo="README.md", repo_id=spec.repo_id, repo_type="dataset",
+    )
+    print(f"Done: https://huggingface.co/datasets/{spec.repo_id}")
+
+
+def push_one(api: HfApi, token: str, spec: DatasetSpec, reset: bool = True) -> None:
+    if spec.verbatim_only:
+        print(f"{spec.name}: verbatim tree(s) -> {spec.repo_id}")
+        push_verbatim(api, spec, reset)
+        return
+
     local = spec.local_dir
     if not local.exists() or not any(local.iterdir()):
         raise RuntimeError(f"{local} is missing or empty")
@@ -108,6 +206,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Push dataset(s) to private HF-native repos.")
     ap.add_argument("datasets", nargs="+",
                     help=f"dataset name(s) or 'all'. Known: {', '.join(DATASETS)}")
+    ap.add_argument("--resume", action="store_true",
+                    help="keep the existing repo instead of deleting it first; "
+                         "re-uploads only what changed (verbatim datasets only).")
     args = ap.parse_args()
 
     names = selected(args.datasets)
@@ -117,7 +218,7 @@ def main() -> None:
     failed: dict[str, str] = {}
     for name in names:
         try:
-            push_one(api, token, resolve(name))
+            push_one(api, token, resolve(name), reset=not args.resume)
         except Exception as exc:  # keep going so one bad dataset doesn't block the rest
             failed[name] = str(exc)
             print(f"FAILED {name}: {exc}", file=sys.stderr)

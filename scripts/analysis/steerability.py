@@ -32,6 +32,7 @@ from scipy import stats
 
 from attrs import ATTRS, load_attributes
 from common import OUT_DIR, PRIMARY_DIM, ensure_out, load_run, write_json
+import theme
 
 DATASETS = {"PARA": "para_full", "EVA": "eva_full", "LAPIS": "lapis_full"}
 MIN_CELL = 50      # min ratings for a level to count
@@ -112,27 +113,29 @@ def steer_dataset(dataset: str, run_name: str) -> dict:
 def plot(report: dict) -> str:
     figdir = os.path.join(OUT_DIR, "figs")
     os.makedirs(figdir, exist_ok=True)
+    theme.apply()
     dss = [k for k in report if not k.startswith("_")]
     fig, axes = plt.subplots(1, len(dss), figsize=(4.2 * len(dss), 4))
     if len(dss) == 1:
         axes = [axes]
     for ax, ds in zip(axes, dss):
         cdf = pd.DataFrame(report[ds]["_cells"])
-        ax.axhline(0, color="#aaa", lw=0.7); ax.axvline(0, color="#aaa", lw=0.7)
-        ax.scatter(cdf["empirical_effect"], cdf["vlm_effect"],
-                   s=np.sqrt(cdf["n"]), alpha=0.6)
         lim = max(cdf["empirical_effect"].abs().max(), cdf["vlm_effect"].abs().max()) * 1.1
-        ax.plot([-lim, lim], [-lim, lim], "--", color="#c44", lw=0.8)
+        ax.plot([-lim, lim], [-lim, lim], "--", color=theme.NEUTRAL, lw=1.0, zorder=1)
+        ax.axhline(0, color=theme.GRID, lw=1.0, zorder=0)
+        ax.axvline(0, color=theme.GRID, lw=1.0, zorder=0)
+        ax.scatter(cdf["empirical_effect"], cdf["vlm_effect"],
+                   s=np.sqrt(cdf["n"]) * 3, alpha=0.7,
+                   color=theme.DATASET.get(ds, theme.PRIMARY),
+                   edgecolor="white", linewidth=0.6, zorder=3)
         ax.set_xlim(-lim, lim); ax.set_ylim(-lim, lim)
         ax.set_xlabel("empirical group deviation")
-        ax.set_ylabel("VLM persona deviation")
-        ax.set_title(f"{ds}  (r={report[ds]['steerability_corr']}, "
-                     f"sign={report[ds]['sign_agreement_frac']})")
-        ax.grid(True, alpha=0.3)
-    fig.suptitle("B1 — steerability: does the persona move the judge the way the data says?")
+        ax.set_ylabel("persona-induced deviation")
+        ax.set_title(f"{ds}   r = {report[ds]['steerability_corr']:+.2f}")
+        ax.grid(False)
     fig.tight_layout()
     path = os.path.join(figdir, "b1_steerability.png")
-    fig.savefig(path, dpi=130)
+    fig.savefig(path, dpi=200)
     plt.close(fig)
     return path
 

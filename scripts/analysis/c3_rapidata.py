@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from common import OUT_DIR, REPO, ensure_out, write_json
+import theme
 
 RUN_DIR = os.path.join(REPO, "data", "results", "rapidata_persona")
 LAPIS_C1_SEPARATION = 0.17   # research_plan.md sec.14.11c (real-art nationality)
@@ -178,28 +179,47 @@ def _agg_figures(rep, Hn, Pn, Nn, ncurve):
     os.makedirs(figs, exist_ok=True)
     ag = rep["aggregation"]
 
-    # Fig 4: aggregate scatter — VLM panel winrate vs human crowd winrate per pair
-    fig, ax = plt.subplots(figsize=(5.2, 5))
-    ax.scatter(Hn, Pn, s=6, alpha=0.35, color="#1f77b4")
-    ax.plot([0, 1], [0, 1], ls="--", c="k", lw=0.7)
-    ax.set_xlabel("human crowd flux-winrate (per pair)")
-    ax.set_ylabel("VLM panel flux-winrate (per pair)")
-    ax.set_title(f"C3 (reframed) — aggregate tracks the crowd\n"
-                 f"r = {ag['pair_corr']:+.2f} [{ag['pair_corr_ci'][0]:+.2f}, {ag['pair_corr_ci'][1]:+.2f}]"
-                 f"  over {len(Hn)} generated pairs")
-    fig.tight_layout(); fig.savefig(os.path.join(figs, "c3_aggregate_scatter.png"), dpi=130); plt.close(fig)
+    theme.apply()
+    from matplotlib.patches import Patch
+    # Fig 4: aggregate scatter — VLM panel winrate vs human crowd winrate per pair.
+    # Each point is a generated pair, colored by how many human votes support it
+    # (its reliability): well-supported pairs cluster tighter along the diagonal.
+    Nn = np.asarray(Nn)
+    # rank-based terciles so the three support groups are balanced even though
+    # vote counts are discrete (value quantiles would collapse the middle bin).
+    order = np.argsort(Nn, kind="stable")
+    n = len(Nn); cat = np.empty(n, dtype=int)
+    cat[order[: n // 3]] = 0
+    cat[order[n // 3: 2 * n // 3]] = 1
+    cat[order[2 * n // 3:]] = 2
+    pt_colors = np.array(theme.BINS3)[cat]
+    fig, ax = plt.subplots(figsize=(5.4, 5))
+    ax.plot([0, 1], [0, 1], ls="--", c=theme.NEUTRAL, lw=1.0, zorder=1)
+    ax.scatter(Hn, Pn, s=14, alpha=0.55, color=pt_colors, edgecolor="white",
+               linewidth=0.3, zorder=2)
+    ax.set_xlabel("human crowd win-rate (per pair)")
+    ax.set_ylabel("panel predicted win-rate (per pair)")
+    handles = [Patch(facecolor=theme.BINS3[0], label="few votes"),
+               Patch(facecolor=theme.BINS3[1], label="medium"),
+               Patch(facecolor=theme.BINS3[2], label="many votes")]
+    ax.legend(handles=handles, title="crowd support", loc="upper left")
+    ax.grid(True, alpha=0.6); ax.set_axisbelow(True)
+    fig.tight_layout(); fig.savefig(os.path.join(figs, "c3_aggregate_scatter.png"), dpi=200); plt.close(fig)
 
     # Fig 5: the N-curve — aggregation mechanism transfers to generated images
     fig, ax = plt.subplots(figsize=(5.8, 4.2))
     xs = sorted(ncurve); ys = [ncurve[n] for n in xs]
-    ax.plot(xs, ys, "-o", color="#d62728", label="panel aggregate")
-    ax.axhline(ag["aggregate_acc_majority"], ls="--", c="#7f7f7f", label="always-flux majority")
-    ax.axhline(ag["individual_acc"], ls=":", c="k", label="single vote (individual)")
+    ax.axhline(ag["aggregate_acc_majority"], ls="--", c=theme.BLUE, lw=1.8,
+               label="always-majority prior")
+    ax.axhline(ag["individual_acc"], ls=":", c=theme.ORANGE, lw=1.8,
+               label="single vote (individual)")
+    ax.plot(xs, ys, "-o", color=theme.AQUA, label="panel aggregate", zorder=3)
     ax.set_xlabel("panel size N (personas aggregated)")
-    ax.set_ylabel("accuracy predicting the crowd's preferred image")
-    ax.set_title("C3 (reframed) — the aggregation mechanism transfers\nto AI-generated images")
-    ax.legend(frameon=False, fontsize=8)
-    fig.tight_layout(); fig.savefig(os.path.join(figs, "c3_ncurve.png"), dpi=130); plt.close(fig)
+    ax.set_ylabel("accuracy predicting the\ncrowd's preferred image")
+    ax.legend(loc="lower right", bbox_to_anchor=(1.0, 0.16), frameon=True,
+              framealpha=0.92, edgecolor="none", facecolor="white")
+    ax.grid(True, axis="y"); ax.set_axisbelow(True)
+    fig.tight_layout(); fig.savefig(os.path.join(figs, "c3_ncurve.png"), dpi=200); plt.close(fig)
     rep.setdefault("_figures", []).extend(["figs/c3_aggregate_scatter.png", "figs/c3_ncurve.png"])
 
 

@@ -12,7 +12,7 @@ from typing import Optional
 import torch
 from transformers import AutoProcessor, LlavaForConditionalGeneration
 
-from .base import ImageInput, VLMBackend, load_image
+from .base import ImagesInput, VLMBackend, load_images
 
 
 class LlavaBackend(VLMBackend):
@@ -54,12 +54,22 @@ class LlavaBackend(VLMBackend):
     def generate(
         self,
         system_prompt: str,
-        image: ImageInput,
+        image: ImagesInput,
         prompt: str,
         max_new_tokens: Optional[int] = None,
         **generate_kwargs,
     ) -> str:
-        pil_image = load_image(image)
+        pil_images = load_images(image)
+        # llava-1.5's template has a single <image> slot, so a multi-image turn
+        # would silently drop all but the first — fail loudly instead. Pairwise
+        # callers (script/rapidata_pipeline.py) need --backend qwen.
+        if len(pil_images) != 1:
+            raise ValueError(
+                f"{type(self).__name__} shows exactly one image per turn, got "
+                f"{len(pil_images)}. Use a backend with an interleaved multi-image "
+                "template (e.g. QwenVLBackend) for pairwise comparisons."
+            )
+        pil_image = pil_images[0]
 
         # LLaVA-1.5 has no system role, so prepend the persona to the user turn.
         user_text = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt

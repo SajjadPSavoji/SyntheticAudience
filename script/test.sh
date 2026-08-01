@@ -1,1 +1,0 @@
-python script/opinions.py
