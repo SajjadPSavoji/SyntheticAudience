@@ -153,7 +153,11 @@ def main() -> None:
             picks.append(iid)
         if len(picks) >= args.n_show:
             break
-    picks = apply_row_order(picks)
+    # The row-order override is a display choice for the canonical top-N grid,
+    # the one the main-text figure mirrors. The --skip/--society-top variants are
+    # separate figures and keep their own ranking untouched.
+    if args.skip == 0 and not args.society_top:
+        picks = apply_row_order(picks)
 
     # true source aesthetic = step-0 best_obj (identical across conditions)
     start_score = (data["society"][data["society"]["step"] == 0]

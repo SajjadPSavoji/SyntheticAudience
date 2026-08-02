@@ -609,8 +609,8 @@ supplement** — it is self-contained.
 | Rationale steerability (AUC persona vs blind + diversity) | persona functional in the text even when the score hides it | `figs/ax_rationale.png` ← `rationale.json` |
 | Content-category difficulty bars (night scenes hardest) | error is content-difficulty, not artifact | `figs/ax_content_category.png` ← `content_category.json` |
 | Robustness & validity checks table (memorization, duplicate-invariance, agreement, difficulty, structure) | group signal is genuine, not leakage/bookkeeping | `leakage.json`, `repeated_measures.json`, `accuracy_vs_agreement.json`, `validity_difficulty.json`, `structure.json` |
-| Second qualitative before/after grid (7 society-wins rows) | more cherry-picked strong AutoPolish edits | `figs/ax_qualitative2.png` ← `c4_qualitative.py --skip 5 --n-show 7 --society-top` on `c4_run2` |
-| Refinement-over-time grid (best-so-far at steps 0/2/4/6/10, 7 rows) | shows the auto-research loop polishing each image progressively | `figs/ax_progression.png` ← `c4_progression.py` on `c4_run2` |
+| Second qualitative before/after grid (8 society-wins rows) | more cherry-picked strong AutoPolish edits | `figs/ax_qualitative2.png` ← `c4_qualitative.py --skip 5 --n-show 8 --society-top` on `c4_run2` |
+| Refinement-over-time grid (best-so-far at steps 0/2/4/6/10, 8 rows) | shows the auto-research loop polishing each image progressively | `figs/ax_progression.png` ← `c4_progression.py --n-show 8` on `c4_run2` |
 
 Supplement is a standalone section (own title block, S-numbered sections/figures/tables) after the references, and now opens with: **S1 Prompts** (persona judge, no-persona control, and complaint-to-instruction distiller, in `tcolorbox` prompt boxes, verbatim from `src/persona/person.py`, `src/editor/critic.py`, `script/para_pipeline.py`); **S2** a worked example of the panel reacting to one image (5 of 10 real panelist reactions + scores, from `c4_run2` society logs); **S3** the aggregation of those complaints into one distilled edit instruction with before/after images (office: `ex_office_{src,edit}`, basketball: `ex_ball_{src,edit}`).
 
