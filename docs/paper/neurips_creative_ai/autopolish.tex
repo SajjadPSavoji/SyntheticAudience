@@ -48,6 +48,15 @@
 \definecolor{aelight}{HTML}{E7F0FB}
 \definecolor{aelightg}{HTML}{E4F5EE}
 
+% Model-provider marks used as corner badges in Figure 1 (about 7pt across).
+% Qwen mark
+\newcommand{\qwenmark}{\raisebox{-0.75ex}{\includegraphics[height=7pt]{figs/qwen_logo.png}}}
+% Black Forest Labs mark (FLUX), cropped to the glyph; wider than tall, so it is
+% set a touch shorter than \qwenmark to read as the same size
+\newcommand{\fluxmark}{\raisebox{-0.55ex}{\includegraphics[height=6pt]{figs/flux_logo.png}}}
+% held-out judge: DINOv2 (Meta) identity check
+\newcommand{\dinomark}{\raisebox{-0.45ex}{\includegraphics[height=5pt]{figs/dinov2_logo.png}}}
+
 \title{AutoPolish: Improving Visual Aesthetics with Synthetic Audience Critique}
 
 % Anonymous for double-blind submission.
@@ -84,61 +93,87 @@ We then put the audience to work. AutoPolish is an autonomous editing loop in wh
 
 \begin{figure}[t]
   \centering
-  \begin{tikzpicture}[
+    \begin{tikzpicture}[
     scale=0.84, transform shape,
     font=\small,
     box/.style={rectangle, rounded corners=3pt, draw=aegray!60, thick, align=center,
-                inner sep=3pt, minimum height=11mm, minimum width=24mm, fill=white},
+                inner sep=3pt, minimum height=11mm, minimum width=27mm, fill=white},
     aud/.style={box, draw=aeblue, fill=aeblue!7},
     edt/.style={box, draw=aegreen, fill=aegreen!8},
-    jdg/.style={box, draw=aered, fill=aered!8},
+    jdg/.style={box, draw=aegreen, fill=aegreen!8},
     io/.style={box, draw=aegray!70, fill=aegray!8},
+    img/.style={box, draw=aered, fill=aered!8},
     flow/.style={-{Latex[length=2.4mm]}, thick, draw=aegray!85},
     feed/.style={-{Latex[length=2.4mm]}, thick, draw=aeblue, dashed},
+    look/.style={-{Latex[length=2.4mm]}, thick, draw=aegray!85, dashed},
     ret/.style={-{Latex[length=2.4mm]}, thick, draw=aegreen!75!black},
     note/.style={font=\scriptsize\itshape, text=aegray},
   ]
-    % ================= Top band: the synthetic audience =================
-    \node[io]  (img)  at (0,0.68)   {Image};
-    \node[io]  (pers) at (0,-0.74)  {Persona cards\\[-2pt]{\scriptsize age, art exp.,}\\[-3pt]{\scriptsize nationality, Big-5}};
-    \node[aud] (vlm)  at (3.5,-0.03) {Frozen VLM\\[-2pt]{\scriptsize role-play}\\[-3pt]{\scriptsize $\times\,N$ personas}};
-    \node[aud] (agg)  at (6.9,-0.03) {Aggregate\\[-2pt]{\scriptsize $+$ calibrate}};
-    \node[aud] (dist) at (10.3,-0.03){Group reaction\\[-2pt]{\scriptsize mean, spread,}\\[-3pt]{\scriptsize complaints}};
+    % ===== Top band: the synthetic audience (4 aligned columns) =====
+    % persona-card stack: two offset cards behind the labelled one, so the
+    % block reads as N cards rather than one
+    \node[io, draw=aegray!40] (pc2) at (1.16,0.22) {};
+    \node[io, draw=aegray!55] (pc1) at (1.03,0.10) {};
+    \node[io] (pers) at (0.9,-0.03)
+      {Persona cards\\[-2pt]{\scriptsize (age, nationality, etc.)}\\[-4pt]{\scriptsize\strut}};
+    \node[anchor=south east, inner sep=2pt] at (pers.south east) {\scriptsize $\times N$};
+    \node[aud] (vlm)  at (4.5,-0.03) {Role-play\\[-2pt]{\scriptsize Qwen2-VL-7B}};
+    \node[anchor=south east, inner sep=2pt] at (vlm.south east) {\qwenmark};
+    % what the role-play emits: one reaction per card, so it mirrors the input
+    % stack -- gray artifact, stacked, times N
+    \node[io, draw=aegray!40] (rc2) at (8.36,0.22) {};
+    \node[io, draw=aegray!55] (rc1) at (8.23,0.10) {};
+    \node[io] (resp) at (8.1,-0.03)
+      {Reactions\\[-2pt]{\scriptsize (score, complaint, etc.)}\\[-4pt]{\scriptsize\strut}};
+    \node[anchor=south east, inner sep=2pt] at (resp.south east) {\scriptsize $\times N$};
+    \node[aud] (agg)  at (11.7,-0.03){Aggregate\\[-1pt]group reaction\\[-2pt]{\scriptsize (stats, complaints, etc.)}};
 
-    \draw[flow] (img.east)  -- (vlm.163);
-    \draw[flow] (pers.east) -- (vlm.197);
-    \draw[flow] (vlm) -- (agg);
-    \draw[flow] (agg) -- (dist);
-    \node[note] (nw) at (5.2,1.0) {frozen backbone: no weights trained};
+    \draw[flow] (pers) -- (vlm);
+    \draw[flow] (vlm)  -- (resp);
+    \draw[flow] (resp) -- (agg);
 
     \node[draw=aeblue!55, dashed, rounded corners=5pt, inner sep=7pt,
-          fit=(img)(pers)(vlm)(agg)(dist)(nw),
-          label={[text=aeblue,font=\footnotesize\bfseries]above left:Synthetic audience}] (frA) {};
+          fit=(pers)(pc1)(pc2)(vlm)(resp)(rc1)(rc2)(agg)] (frA) {};
+    \node[anchor=south west, text=aeblue, font=\footnotesize\bfseries]
+      at (frA.north west) {Synthetic audience};
 
-    % ================= Bottom band: the AutoPolish loop =================
-    \node[edt] (cur)  at (0.9,-3.05)  {Current\\best image};
-    \node[edt] (crit) at (4.3,-3.05)  {Audience critic\\[-2pt]{\scriptsize complaints}\\[-3pt]{\scriptsize $\to$ instruction}};
-    \node[edt] (ed)   at (7.7,-3.05)  {Image editor\\[-2pt]{\scriptsize FLUX.1-Kontext}};
-    \node[jdg] (jud)  at (11.1,-3.05) {Held-out judge\\[-2pt]{\scriptsize LAION aes.}\\[-3pt]{\scriptsize $+$ DINOv2}};
+    % ===== Bottom band: the AutoPolish loop (same 4 columns) =====
+    \node[img] (cur)  at (0.9,-3.05)  {Current\\best image};
+    \node[edt] (crit) at (4.5,-3.05)  {Distill instruction\\[-2pt]{\scriptsize Qwen2-VL-7B}};
+    \node[anchor=south east, inner sep=2pt] at (crit.south east) {\qwenmark};
+    \node[edt] (ed)   at (8.1,-3.05)  {Image editor\\[-2pt]{\scriptsize FLUX.1-Kontext}};
+    \node[anchor=south east, inner sep=2pt] at (ed.south east) {\fluxmark};
+    \node[jdg] (jud)  at (11.7,-3.05) {Held-out judge\\[-2pt]{\scriptsize LAION $+$ DINOv2}};
+    \node[anchor=south east, inner sep=2pt] at (jud.south east) {\dinomark};
 
     \draw[flow] (cur)  -- (crit);
     \draw[flow] (crit) -- (ed);
     \draw[flow] (ed)   -- (jud);
-    \node[note, text=aered!85!black] at (11.1,-3.98) {different model family};
-
-    % feedback: the audience's complaints steer the critic (Manhattan route)
-    \draw[feed] (dist.south) |- (4.3,-1.72) -- (crit.north);
-    \node[note, text=aeblue] at (7.5,-1.5) {complaints steer the critic};
-
-    % accept-if-better return: judge commits back to the current best
-    \draw[ret] (jud.south) -- ++(0,-0.78) -| (cur.south);
-    \node[note, text=aegreen!60!black] at (6.0,-4.12) {commit if better \ $\cdot$ \ loop $\times 10$, anchored re-edit};
 
     \node[draw=aegreen!60, dashed, rounded corners=5pt, inner sep=7pt,
-          fit=(cur)(crit)(ed)(jud),
-          label={[text=aegreen!72!black,font=\footnotesize\bfseries]above left:AutoPolish loop}] (frB) {};
+          fit=(cur)(crit)(ed)(jud)] (frB) {};
+    \node[anchor=south west, text=aegreen!72!black, font=\footnotesize\bfseries]
+      at (frB.north west) {AutoPolish loop};
+
+    % the panel looks at the image the loop is currently holding. Routed as a
+    % Manhattan path, not a diagonal: a diagonal here crosses its own label and
+    % the feedback arrow's lane.
+    \draw[look] (2.7,-3.05) -- (2.7,-1.35) -| (vlm.south);
+    % same branch carries on to the editor's left edge
+    \draw[look] (4.5,-1.35) -- (6.2,-1.35) -- (6.2,-2.72) -- ([yshift=3.3mm]ed.west);
+    \fill[aegray!85] (2.7,-3.05) circle (1.5pt);
+
+    % feedback: the audience's complaints steer the critic
+    \draw[feed] (agg.south) |- (4.5,-1.80) -- (crit.north);
+    \node[note, text=aeblue, anchor=east] at (10.5,-1.62) {complaints steer the instruction};
+
+    % accept-if-better return: judge commits back to the current best
+    \draw[ret] (jud.east) -- ++(0.7,0) -- ++(0,-1.40) -| (cur.south);
+    % one line in the gap between the dashed loop frame and the return arrow
+    \node[note, text=aegreen!60!black] at (6.3,-4.14)
+      {keep the edit only if it scores higher \ $\cdot$ \ $10$ steps, always from the original};
   \end{tikzpicture}
-  \caption{\textbf{Overview.} \emph{Top (blue):} a frozen vision-language model role-plays $N$ personas on one image; the reactions are calibrated and aggregated into a group reaction (center, spread, mined complaints) with no weights ever trained. \emph{Bottom (green):} the audience critiques the current best image, its complaints become one editing instruction, an editor applies it, and an independent held-out judge (orange, a different model family) commits the edit only if a held-out aesthetic score improves and identity survives. The proposer never grades.}
+  \caption{\textbf{Overview.} \emph{Top (blue):} $N$ persona cards, each a plain-text description of one real annotator, are role-played one at a time by a frozen Qwen2-VL-7B looking at the image the loop currently holds; the reactions are calibrated and aggregated into a group reaction (center, spread, mined complaints), with no weights ever trained. \emph{Bottom (green):} the audience critiques the current best image, its complaints become one editing instruction, FLUX.1-Kontext applies it, and a held-out judge commits the edit only if a held-out aesthetic score improves and identity survives. That judge is not a VLM: it is a LAION aesthetic predictor (CLIP backbone, MLP head) plus a DINOv2 identity check, a different model family from the critic, so the proposer never grades.}
   \label{fig:overview}
 \end{figure}
 
