@@ -61,7 +61,7 @@ python paper_figs.py --c4-root ../../data/results/c4_run2   # main-text composit
 python paper_extra.py                                       # supplement figures
 ```
 
-Writes into `docs/paper/figs/`:
+Writes into `docs/paper/neurips_creative_ai/figs/`:
 
 | File | Paper | Panels |
 |---|---|---|
@@ -72,14 +72,14 @@ Writes into `docs/paper/figs/`:
 ### Rebuild the paper
 
 ```bash
-cd docs/paper && latexmk -pdf autoedit.tex
+cd docs/paper/neurips_creative_ai && latexmk -pdf autopolish.tex
 ```
 
 Expected: **19 pages** — 6 pages of main content, references starting on page 7, then the
 supplement. No undefined references, no overfull boxes. Check with:
 
 ```bash
-pdftotext autoedit.pdf - | awk 'BEGIN{p=1} /\f/{p++} {if ($0 ~ /^References$/) print "References: p"p}'
+pdftotext autopolish.pdf - | awk 'BEGIN{p=1} /\f/{p++} {if ($0 ~ /^References$/) print "References: p"p}'
 ```
 
 ### Where each paper number lives

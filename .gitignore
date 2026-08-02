@@ -15,13 +15,13 @@ __pycache__/
 data/
 results/
 
-# LaTeX build intermediates (docs/paper/autoedit.pdf IS committed; the rest rebuilds)
+# LaTeX build intermediates (docs/paper/neurips_creative_ai/autopolish.pdf IS committed; the rest rebuilds)
 *.aux
 *.fdb_latexmk
 *.fls
 *.out
 *.synctex.gz
-docs/paper/*.log
+docs/paper/**/*.log
 
 # Jupyter
 .ipynb_checkpoints/

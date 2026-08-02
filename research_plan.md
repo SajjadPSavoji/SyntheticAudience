@@ -566,7 +566,9 @@ Everything is inference (no training). Exp 0 is CPU-only. Judge inference caches
 
 ## Appendix F.1 — Paper and publication-grade figures (added 2026-07-29)
 
-The NeurIPS 2026 **Creative AI Track** submission lives in `docs/paper/` (`autoedit.tex`,
+The NeurIPS 2026 **Creative AI Track** submission lives in `docs/paper/neurips_creative_ai/`
+(`autopolish.tex` + `figs/`; one self-contained directory per venue, since page limits and
+templates differ enough that figures are re-tuned per venue;
 system named **AutoPolish**). All figures share one colorblind-validated palette
 (blue `#2a78d6` = ours/audience, orange `#eb6834` = control/secondary, aqua `#1baf7a`
 = oracle/edit, gray = neutral; per-dataset map PARA→orange, EVA→blue, LAPIS→green),

@@ -1,11 +1,11 @@
-# AutoPolish: Refining Images with Frozen Synthetic Audiences
+# AutoPolish: Improving Visual Aesthetics with Synthetic Audience Critique
 
 *A frozen vision-language model role-plays a panel of viewers, their aggregated reaction
 predicts how a real group will respond to an image, and that panel then drives an autonomous
 image-editing loop.*
 
-📄 **Paper:** [`docs/paper/autoedit.pdf`](docs/paper/autoedit.pdf) (6 pages + supplement)
-· source: [`docs/paper/autoedit.tex`](docs/paper/autoedit.tex)
+📄 **Paper:** [`docs/paper/neurips_creative_ai/autopolish.pdf`](docs/paper/neurips_creative_ai/autopolish.pdf) (6 pages + supplement)
+· source: [`docs/paper/neurips_creative_ai/autopolish.tex`](docs/paper/neurips_creative_ai/autopolish.tex)
 🎮 **Try it:** [`notebook/autopolish_playground.ipynb`](notebook/autopolish_playground.ipynb)
 🔁 **Reproduce:** [`REPRODUCING.md`](REPRODUCING.md)
 
@@ -93,7 +93,10 @@ runs a persona panel and one AutoPolish step on example images, and needs no pri
 > historical and every path in `research_plan.md` depends on them, so they were left as-is.
 
 ```
-docs/paper/            the paper: autoedit.tex + autoedit.pdf + figs/  (rebuild: latexmk -pdf autoedit.tex)
+docs/paper/            one self-contained directory per venue (copy the whole directory for a new one)
+  neurips_creative_ai/ NeurIPS 2026 Creative AI: autopolish.tex + .pdf + checklist.tex + figs/
+                       (rebuild: cd docs/paper/neurips_creative_ai && latexmk -pdf autopolish.tex;
+                        figures: scripts/analysis/paper_figs.py --figs <venue>/figs)
 REPRODUCING.md         step-by-step reproduction, tiered by what you have access to
 research_plan.md       build plan, statistical endpoints, and the full interim-results log (§14)
 PROPOSAL.md            the original scientific proposal
@@ -176,7 +179,7 @@ All three tiers are complete: every experiment in the paper has its generating s
 ## Citation
 
 The paper is under anonymous review; please cite the arXiv version when it is posted. Until
-then, refer to `docs/paper/autoedit.pdf`.
+then, refer to `docs/paper/neurips_creative_ai/autopolish.pdf`.
 
 ## License
 

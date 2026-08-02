@@ -29,6 +29,23 @@ LABELS = {"static": "static", "blind": "blind VLM", "society": "society",
           "reward_only": "reward-only"}
 N_SHOW = 5
 
+# Display-order override, shared with paper_figs.fig_qualitative. Rows are ranked
+# by society-minus-static gain, but the main-text figure leads with the
+# fifth-ranked image, so positions 1 and 5 trade places in both grids. Applying it
+# in one place keeps the supplement grid a superset of the main figure: the main
+# figure is still exactly the first three rows of this one.
+ROW_SWAP = (0, 4)
+
+
+def apply_row_order(picks: list[str]) -> list[str]:
+    """Swap the two ROW_SWAP positions when both are present."""
+    i, j = ROW_SWAP
+    if len(picks) <= max(i, j):
+        return list(picks)
+    out = list(picks)
+    out[i], out[j] = out[j], out[i]
+    return out
+
 
 def load_c4(condition: str, logs_dir: str) -> pd.DataFrame:
     run = f"c4_{condition}"
@@ -44,6 +61,21 @@ def _final_best(df: pd.DataFrame) -> pd.DataFrame:
     """Last-step row per image (carries best_obj + best_path)."""
     idx = df.groupby("image_id")["step"].idxmax()
     return df.loc[idx].set_index("image_id")
+
+
+def _cell_path(edits_dir: str, cond: str, img_id: str, best_path: str) -> str | None:
+    """Resolve one grid cell: a condition's committed-best image file.
+
+    ``step0_source.png`` as the best path means the condition never improved on
+    the original. The loop does not copy that file into each condition's
+    directory, so it has to fall back to the shared source -- without this a
+    perfectly good row is dropped for "missing" cells that were never written.
+    """
+    name = os.path.basename(str(best_path))
+    if name.startswith("step0"):
+        return _source_path(edits_dir, img_id)
+    p = os.path.join(edits_dir, cond, img_id, name)
+    return p if os.path.exists(p) else None
 
 
 def _source_path(edits_dir: str, img_id: str) -> str | None:
@@ -106,8 +138,7 @@ def main() -> None:
         for c in present:
             if iid not in finals[c].index:
                 return False
-            bp = os.path.basename(str(finals[c].loc[iid]["best_path"]))
-            if not os.path.exists(os.path.join(edits_dir, c, iid, bp)):
+            if _cell_path(edits_dir, c, iid, finals[c].loc[iid]["best_path"]) is None:
                 return False
         if args.society_top:  # keep only rows where society is the (tied) best
             best = max(finals[c].loc[iid]["best_obj"] for c in present)
@@ -122,6 +153,7 @@ def main() -> None:
             picks.append(iid)
         if len(picks) >= args.n_show:
             break
+    picks = apply_row_order(picks)
 
     # true source aesthetic = step-0 best_obj (identical across conditions)
     start_score = (data["society"][data["society"]["step"] == 0]
@@ -144,8 +176,8 @@ def main() -> None:
                 # Reconstruct from the LOCAL edits_dir (best_path in the log is an
                 # absolute path from wherever the run executed, e.g. Colab/Drive).
                 if img_id in finals[col].index:
-                    bp = str(finals[col].loc[img_id]["best_path"])
-                    path = os.path.join(edits_dir, col, img_id, os.path.basename(bp))
+                    path = _cell_path(edits_dir, col, img_id,
+                                      finals[col].loc[img_id]["best_path"])
                     score = finals[col].loc[img_id]["best_obj"]
                 else:
                     path, score = None, float("nan")
