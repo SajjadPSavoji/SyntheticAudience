@@ -75,17 +75,17 @@
 
 
 \begin{abstract}
-Aesthetic judgment is plural. The same image can move one viewer and leave another cold, and both reactions are right, as they belong to different people. So the honest answer to ``how good is this image?'' is not one number but the spread of reactions an image draws from a crowd. We ask whether an off-the-shelf vision-language model (VLM) can imitate that spread well enough to guide creative work. We describe a single viewer persona in plain text, such as their age, education, and taste in art, ask the model to react as that person would, and repeat for many viewers to build a synthetic audience and aggregate their reactions to form a simulated crowd response. Across three datasets of human-rated images we show that only 19-47\% of one person's rating is shared with other viewers, thus an individual score is mostly private taste and cannot be predicted. The crowd's average, in contrast, is steady enough that a fresh set of viewers reproduces it almost exactly with 0.96 correlation. The synthetic audience also picks up how taste differs between kinds of viewers. When it predicts that one group will like an image more than another group does, real people from those groups tend to agree, at a correlation of $0.17$, while without the viewer personas the correlation is only $0.02$. This carries over to AI-generated image pairs, where the simulated crowd can predict which of two pictures people would prefer, and its accuracy gets better as more viewer personas are added. Building on these findings, we introduce AutoPolish, an auto-research style editing loop in which the synthetic audience serves as the creative critic. It asks the simulated crowd to critique an image and turns their plural judgment into an improvement instruction for a language-conditioned image editor. The edited image is then examined by a separate aesthetic judge, which decides how successful the edit was and steers the next round of the loop. We show that AutoPolish measurably improves aesthetic scores while keeping the picture recognizably itself. We further show that the synthetic audience raises $3.1\times$ more distinct objections than a single generic critic. Our implementation is available at \url{https://github.com/<anon>/autopolish}.
+Aesthetic judgment is plural. The same image can move one viewer and leave another cold, and both reactions are right, as they belong to different people. So the correct answer to ``how good is this image?'' is not one number but the spread of reactions an image draws from a crowd. We ask whether an off-the-shelf vision-language model (VLM) can imitate that spread well enough to guide creative work. We describe a single viewer persona in plain text, such as their age, education, and taste in art, ask the model to react as that person would, and repeat for many viewers to build a synthetic audience and aggregate their reactions to form a simulated crowd response. Across three datasets of human-rated images we show that only 19-47\% of one person's rating is shared with other viewers, thus an individual score is mostly private taste and cannot be predicted. The crowd's average, in contrast, is steady enough that a fresh set of viewers reproduces it almost exactly with 0.96 correlation. The synthetic audience also picks up how taste differs between kinds of viewers. When it predicts that one group will like an image more than another group does, real people from those groups tend to agree, at a correlation of $0.17$, while without the viewer personas the correlation is only $0.02$. This carries over to AI-generated image pairs, where the simulated crowd can predict which of two pictures people would prefer, and its accuracy gets better as more viewer personas are added. Building on these findings, we introduce AutoPolish, an auto-research style editing loop in which the synthetic audience serves as the creative critic. It asks the simulated crowd to critique an image and turns their plural judgment into an improvement instruction for a language-conditioned image editor. The edited image is then examined by a separate aesthetic judge, which decides how successful the edit was and steers the next round of the loop. We show that AutoPolish measurably improves aesthetic scores while keeping the picture recognizably itself. We further show that the synthetic audience raises $3.1\times$ more distinct objections than a single generic critic. Our implementation is available at \url{https://github.com/<anon>/autopolish}.
 \end{abstract}
 
 
 \section{Introduction}
 
-Ask ten people to rate a photograph and you will rarely get one answer. A landscape that feels serene to one viewer feels empty to another. An edit that one person calls striking another calls garish. This disagreement is usually treated as noise and averaged away. We treat it as the signal. Taste is plural, and a creative tool that ignores that plurality works to please a viewer who does not exist, the statistical average of everyone, who resembles no one.
+Ask ten people to rate a photograph and you will rarely get one answer. A landscape that feels serene to one viewer feels empty to another. An edit that one person calls striking another calls garish. Editing tools usually treat this disagreement as noise and average it away \citep{murray2012ava, schuhmann2022, xu2023imagereward, kirstain2023pickapic}. But an editing signal built on a naive average ignores the plural nature of taste \citep{uma2021, plank2022} and tunes the result for an average viewer who does not exist and who resembles no one.
 
-Most work on computational aesthetics reduces a picture to a single score, and most creative feedback loops spend their effort raising that one number. We take the honest answer to ``how will this image land?'' to be the whole spread of reactions a picture draws from people: where it centers, how far apart viewers fall, and how it shifts from one kind of viewer to another. The question this paper asks is whether an off-the-shelf vision-language model (VLM) can imitate that spread, and whether the imitation is trustworthy enough to steer a real creative decision.
+Most work on computational aesthetics reduces the quality of a picture to a single score \citep{murray2012ava, ke2023vila, wu2024qalign}, and thus the creative feedback loops spend their effort raising that one number \citep{black2024ddpo, wallace2024dpo}. We take the correct answer to ``how will this image land?'' to be the whole spread of reactions a picture draws from people. The feedback worth acting on is then where those opinions center, how widely they spread, and how they shift from one kind of viewer to another. The question this work addresses is whether an off-the-shelf vision-language model (VLM) can imitate that spread, and whether the imitation is trustworthy enough to steer a real creative decision.
 
-Our method is deliberately simple and trains nothing. We write one viewer down in plain text, giving their age, education, familiarity with art, personality, and nationality, ask the model to react to an image as that person would, and repeat for many viewers. Averaging their reactions gives the predicted crowd response, and that is the entire method. One measurement then organizes everything that follows. A single person's rating is mostly their own private taste, so very little of it can be predicted by any model at all. The crowd average is a different matter, because the private part of each reaction cancels out in the average and what remains is steady and predictable. This contrast tells us where a synthetic audience can be believed and where it cannot.
+Our method is deliberately straightforward and training-free; we describe a viewer in plain text by giving their age, education, familiarity with art, personality, and nationality. In a role-play scenario, we then prompt the model to react to an image as that person would, and scale to many viewers to extract the predicted crowd response by averaging their collective reactions.
 
 We then put the audience to work. AutoPolish is an auto-research style editing loop in which the synthetic audience is the critic. The crowd looks at the current picture, its complaints are gathered into one short instruction, and an image editor carries that instruction out. A separate aesthetic judge decides whether the new picture is better and whether it is still the same picture, and the loop keeps the edit only if it is both. That judge is a different kind of model from the critic and never sees the instruction, so the loop cannot declare its own success. Our contributions are:
 
@@ -297,6 +297,14 @@ Omitted for anonymous review.
 Argyle, L.P., Busby, E.C., Fulda, N., Gubler, J.R., Rytting, C.\ and Wingate, D.\ (2023)
 Out of one, many: Using language models to simulate human samples. {\it Political Analysis} {\bf 31}(3):337-351.
 
+\bibitem{uma2021}
+Uma, A.N., Fornaciari, T., Hovy, D., Paun, S., Plank, B.\ and Poesio, M.\ (2021)
+Learning from disagreement: A survey. {\it Journal of Artificial Intelligence Research} {\bf 72}:1385-1470.
+
+\bibitem{plank2022}
+Plank, B.\ (2022)
+The ``problem'' of human label variation: On ground truth in data, modeling and evaluation. In {\it EMNLP}.
+
 \bibitem{yang2022para}
 Yang, Y., Xu, L., Li, L., Qie, N., Li, Y., Zhang, P.\ and Guo, Y.\ (2022)
 Personalized image aesthetics assessment with rich attributes (PARA). In {\it CVPR}.
@@ -304,6 +312,14 @@ Personalized image aesthetics assessment with rich attributes (PARA). In {\it CV
 \bibitem{murray2012ava}
 Murray, N., Marchesotti, L.\ and Perronnin, F.\ (2012)
 AVA: A large-scale database for aesthetic visual analysis. In {\it CVPR}.
+
+\bibitem{ke2023vila}
+Ke, J., Ye, K., Yu, J., Wu, Y., Milanfar, P.\ and Yang, F.\ (2023)
+VILA: Learning image aesthetics from user comments with vision-language pretraining. In {\it CVPR}.
+
+\bibitem{wu2024qalign}
+Wu, H., Zhang, Z., Zhang, W., Chen, C., Liao, L.\ et al.\ (2024)
+Q-Align: Teaching LMMs for visual scoring via discrete text-defined levels. In {\it ICML}.
 
 \bibitem{rapidata2024}
 Rapidata (2024)
@@ -320,6 +336,22 @@ FLUX.1-Kontext: In-context image editing. Technical report.
 \bibitem{schuhmann2022}
 Schuhmann, C., Beaumont, R., Vencu, R., Gordon, C., Wightman, R.\ et al.\ (2022)
 LAION-5B: An open large-scale dataset for training next generation image-text models. In {\it NeurIPS Datasets and Benchmarks}.
+
+\bibitem{xu2023imagereward}
+Xu, J., Liu, X., Wu, Y., Tong, Y., Li, Q.\ et al.\ (2023)
+ImageReward: Learning and evaluating human preferences for text-to-image generation. In {\it NeurIPS}.
+
+\bibitem{kirstain2023pickapic}
+Kirstain, Y., Polyak, A., Singer, U., Matiana, S., Penna, J.\ and Levy, O.\ (2023)
+Pick-a-Pic: An open dataset of user preferences for text-to-image generation. In {\it NeurIPS}.
+
+\bibitem{black2024ddpo}
+Black, K., Janner, M., Du, Y., Kostrikov, I.\ and Levine, S.\ (2024)
+Training diffusion models with reinforcement learning. In {\it ICLR}.
+
+\bibitem{wallace2024dpo}
+Wallace, B., Dang, M., Rafailov, R., Zhou, L., Lou, A.\ et al.\ (2024)
+Diffusion model alignment using direct preference optimization. In {\it CVPR}.
 
 \bibitem{radford2021}
 Radford, A., Kim, J.W., Hallacy, C., Ramesh, A., Goh, G.\ et al.\ (2021)
