@@ -23,6 +23,7 @@
 \usepackage{graphicx}
 \usepackage[font=small,labelfont=bf,skip=3.5pt]{caption}
 \usepackage{subcaption}
+\usepackage{enumitem}      % compact contribution bullets
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta, positioning, shapes.geometric, calc, backgrounds, fit}
 \usepackage[most]{tcolorbox}
@@ -85,11 +86,17 @@ Ask ten people to rate a photograph and you will rarely get one answer. A landsc
 
 Most work on computational aesthetics reduces the quality of a picture to a single score \citep{murray2012ava, ke2023vila, wu2024qalign}, and thus the creative feedback loops spend their effort raising that one number \citep{black2024ddpo, wallace2024dpo}. We take the correct answer to ``how will this image land?'' to be the whole spread of reactions a picture draws from people. The feedback worth acting on is then where those opinions center, how widely they spread, and how they shift from one kind of viewer to another. The question this work addresses is whether an off-the-shelf vision-language model (VLM) can imitate that spread, and whether the imitation is trustworthy enough to steer a real creative decision.
 
-Our method is deliberately straightforward and training-free; we describe a viewer in plain text by giving their age, education, familiarity with art, personality, and nationality. In a role-play scenario, we then prompt the model to react to an image as that person would, and scale to many viewers to extract the predicted crowd response by averaging their collective reactions.
+Our method is deliberately straightforward and training-free; we describe a viewer in plain text by giving their age, education, familiarity with art, personality, and nationality. We then prompt the model to role-play that person and react to an image as they would, and we repeat this for many viewers to build a synthetic audience whose collective reactions we take as a prediction of the crowd response. The synthetic audience is then plugged into an auto-research style editing loop as the critic. It looks at the current picture and passes its complaints to a language-conditioned image editor as improvement instructions. A separate aesthetic judge decides whether the applied edit was beneficial without altering the essence of the picture. The judge's decisions guide the iterations of the loop, either rolling back to the previous best image or moving forward with the proposed edit.
 
-We then put the audience to work. AutoPolish is an auto-research style editing loop in which the synthetic audience is the critic. The crowd looks at the current picture, its complaints are gathered into one short instruction, and an image editor carries that instruction out. A separate aesthetic judge decides whether the new picture is better and whether it is still the same picture, and the loop keeps the edit only if it is both. That judge is a different kind of model from the critic and never sees the instruction, so the loop cannot declare its own success. Our contributions are:
+In short, our contributions are:
 
-\textbf{(1) A plural view of taste, and the measurement that justifies it:} only 19-47\% of one person's rating is shared with other viewers, a group's average is reproduced by a fresh set of viewers at $0.96$ correlation, and a viewer's stated background explains just 1-4\% of their personal taste (Section~\ref{sec:ceiling}). \textbf{(2) A synthetic audience, with nothing trained, that reproduces real differences between groups of viewers:} on paintings it matches the observed gaps between groups at $0.17$ correlation, against $0.02$ when the personas are removed, and it improves as the personas get richer (Section~\ref{sec:audience}). \textbf{(3) Evidence that the same averaging works on AI-generated images:} the simulated crowd predicts which of two pictures people prefer, beats a strong majority baseline, and gets more accurate with every persona added (Section~\ref{sec:audience}). \textbf{(4) AutoPolish, an editing loop driven by the audience,} which measurably improves the aesthetic score while keeping the picture recognizably itself, keeps its critic and its judge separate so neither grades its own work, and draws $3.1\times$ more distinct objections than a generic critic (Section~\ref{sec:c4}). We also report in full where the method does not yet work (supplement, Section~\ref{sec:limits}).
+\begin{itemize}[leftmargin=1.4em, itemsep=2pt, topsep=2pt, parsep=0pt]
+\item We show that aesthetic taste is plural: as little as 19\% of a rating is shared between individuals, while a group's average is reproduced by a fresh set of viewers at up to $0.96$ correlation.
+
+\item We show that a role-played synthetic audience is a usable proxy for a real crowd. It reproduces the differences in taste between viewer groups at a correlation $9\times$ that of a persona-free VLM.
+
+\item We show that adding the synthetic audience as the critic in an auto-research style editing loop draws $3\times$ reacher guidance than a generic critic and measurably improves aesthetic scores.
+\end{itemize}
 
 \begin{figure}[t]
   \centering
