@@ -112,7 +112,7 @@ In short, our contributions are:
     img/.style={box, draw=aered, fill=aered!8},
     flow/.style={-{Latex[length=2.4mm]}, thick, draw=aegray!85},
     feed/.style={-{Latex[length=2.4mm]}, thick, draw=aeblue, dashed},
-    look/.style={-{Latex[length=2.4mm]}, thick, draw=aegray!85, dashed},
+    look/.style={-{Latex[length=2.4mm]}, thick, draw=aered, dashed},
     ret/.style={-{Latex[length=2.4mm]}, thick, draw=aegreen!75!black},
     note/.style={font=\scriptsize\itshape, text=aegray},
   ]
@@ -160,14 +160,12 @@ In short, our contributions are:
     \node[draw=aegreen!60, dashed, rounded corners=5pt, inner sep=7pt,
           fit=(cur)(crit)(ed)(jud)] (frB) {};
     \node[anchor=south west, text=aegreen!72!black, font=\footnotesize\bfseries]
-      at (frB.north west) {AutoPolish loop};
+      at (frB.north west) {Auto-research loop};
 
     % the panel looks at the image the loop is currently holding. Routed as a
     % Manhattan path, not a diagonal: a diagonal here crosses its own label and
     % the feedback arrow's lane.
     \draw[look] (2.7,-3.05) -- (2.7,-1.35) -| (vlm.south);
-    % same branch carries on to the editor's left edge
-    \draw[look] (4.5,-1.35) -- (6.2,-1.35) -- (6.2,-2.72) -- ([yshift=3.3mm]ed.west);
     \fill[aegray!85] (2.7,-3.05) circle (1.5pt);
 
     % feedback: the audience's complaints steer the critic
@@ -180,18 +178,18 @@ In short, our contributions are:
     \node[note, text=aegreen!60!black] at (6.3,-4.14)
       {keep the edit only if it scores higher \ $\cdot$ \ $10$ steps, always from the original};
   \end{tikzpicture}
-  \caption{\textbf{Overview.} \emph{Top (blue):} $N$ persona cards, each a plain-text description of one real annotator, are role-played one at a time by a frozen Qwen2-VL-7B looking at the image the loop currently holds; the reactions are calibrated and aggregated into a group reaction (center, spread, mined complaints), with no weights ever trained. \emph{Bottom (green):} the audience critiques the current best image, its complaints become one editing instruction, FLUX.1-Kontext applies it, and a held-out judge commits the edit only if a held-out aesthetic score improves and identity survives. That judge is not a VLM: it is a LAION aesthetic predictor (CLIP backbone, MLP head) plus a DINOv2 identity check, a different model family from the critic, so the proposer never grades.}
+  \caption{\textbf{Overview of the AutoPolish pipeline.} \textbf{(Top)} A frozen Qwen2-VL-7B is conditioned on $N$ persona cards, each describing one viewer in plain text, to build a synthetic audience. Given an image, the aesthetic critique of every persona in that audience is aggregated and returned as a collective reaction. \textbf{(Bottom)} Given the current best image and the audience's collective critique, Qwen2-VL-7B generates one editing instruction that resolves the critique. The instruction is fed to FLUX.1-Kontext, which produces a modified version of the image. A held-out aesthetic judge then examines the new image with a LAION aesthetic predictor and DINOv2, and decides whether the auto-research loop should roll back to the previous image or accept the new one.}
   \label{fig:overview}
 \end{figure}
 
 
 \section{Related work}
 
-\paragraph{Simulating people with language models.} A growing literature uses language models as stand-ins for human respondents, from ``silicon sampling'' of survey populations \citep{argyle2023} to persona-conditioned opinion simulation, almost entirely on text. Our audience reacts to \emph{visual} stimuli and does not stop at simulating opinions: we measure when the simulation is faithful and then use it to act. We are also explicit about the level of analysis: prior work chases individual fidelity, which we show is near-impossible in principle, so we relocate the claim to the group.
+\paragraph{Vision-language models as aesthetic judges.} CLIP-based scorers made zero-shot aesthetic prediction practical \citep{schuhmann2022, ke2023vila}, and instruction-tuned multimodal LLMs made it conversational: mapping quality onto discrete text-defined levels gives strong score prediction \citep{wu2024qbench, wu2024qalign}, while dedicated benchmarks report that general-purpose models still trail humans on fine-grained aesthetic reasoning \citep{huang2024aesbench, zhou2024uniaa, huang2024aesexpert}. All of it targets a single consensus judgment. None simulates a distribution of viewers.
 
-\paragraph{Personalized and subgroup aesthetics.} Personalized aesthetics assessment predicts a specific user's score from rich per-user attributes \citep{yang2022para}, and reward-based personalization such as PAMELA \citep{pamela2026} tunes a scalar reward to one user. We differ on three axes: we model a \emph{population distribution} rather than one user, we keep every model frozen, and we feed back natural-language critique rather than a scalar. AesBiasBench \citep{aesbiasbench2025} supplies the lens we use to audit subgroup calibration, and work on individual differences \citep{individual2025} motivates our ceiling analysis. We never train a taste predictor.
+\paragraph{Simulating people with language models.} Conditioning a language model on a demographic backstory reproduces survey response distributions with surprising fidelity \citep{argyle2023}, but the follow-up literature is more cautious: synthetic responses show systematically lower variance than human data \citep{bisbee2024synthetic}, opinion distributions are misaligned with several demographic groups \citep{santurkar2023whose}, and persona prompts can tip into caricature \citep{cheng2023compost}. Two lessons carry over. Aggregate-level simulation is more trustworthy than individual-level simulation, and calibration is a prerequisite rather than a refinement. This work is almost entirely text; whether persona conditioning transfers to \emph{visual} aesthetic judgment is open, and that is the question we answer.
 
-\paragraph{Feedback loops for generation and editing.} Reward models and preference optimization steer generators toward human-preferred outputs, and instruction-based editors such as FLUX.1-Kontext \citep{flux2024} make targeted edits from text. The recurring hazard is circularity: when the model that proposes an edit also scores it, ``improvement'' can be self-fulfilling. AutoPolish avoids this, because the proposer (the audience critic) and the grader (a held-out aesthetic predictor \citep{schuhmann2022} plus a DINOv2 identity check \citep{oquab2023}) are different model families, and the grader never sees the instruction.
+\paragraph{Feedback loops for generation and editing.} Reward-driven refinement is standard, whether through a learned preference model \citep{xu2023imagereward, kirstain2023pickapic}, policy-gradient RL \citep{fan2023dpok, black2024ddpo}, differentiable reward backpropagation \citep{clark2024draft, prabhudesai2023alignprop}, or direct preference optimization \citep{wallace2024dpo}. In parallel, language-feedback self-refinement established the critique-then-revise pattern \citep{madaan2023selfrefine, shinn2023reflexion, gou2024critic}, and multimodal variants dispatch a VLM to find and fix faults \citep{wu2024sld, wang2024genartist}, with instruction-based editors as the actuator \citep{brooks2023instructpix2pix, flux2024}. Two gaps persist. Every reward here is a scalar consensus signal, so none represents an audience; and when one model both proposes and scores an edit, improvement can be self-fulfilling, a self-bias documented directly in LLM self-evaluation \citep{xu2024selfbias}. AutoPolish addresses both: the reward is a plural audience whose critique is natural language, and the proposer and the frozen held-out grader \citep{schuhmann2022, oquab2023} are different model families, with the grader never shown the instruction.
 
 
 \section{Method}
@@ -360,6 +358,107 @@ Training diffusion models with reinforcement learning. In {\it ICLR}.
 Wallace, B., Dang, M., Rafailov, R., Zhou, L., Lou, A.\ et al.\ (2024)
 Diffusion model alignment using direct preference optimization. In {\it CVPR}.
 
+\bibitem{kong2016aadb}
+Kong, S., Shen, X., Lin, Z., Mech, R.\ and Fowlkes, C.\ (2016)
+Photo aesthetics ranking network with attributes and content adaptation. In {\it ECCV}.
+
+\bibitem{chang2017pccd}
+Chang, K.-Y., Lu, K.-H.\ and Chen, C.-S.\ (2017)
+Aesthetic critiques generation for photos. In {\it ICCV}.
+
+\bibitem{kang2020eva}
+Kang, C., Valenzise, G.\ and Dufaux, F.\ (2020)
+EVA: An explainable visual aesthetics dataset.
+In {\it Joint Workshop on Aesthetic and Technical Quality Assessment of Multimedia and Media Analytics for Societal Trends (ACM MM)}.
+
+\bibitem{talebi2018nima}
+Talebi, H.\ and Milanfar, P.\ (2018)
+NIMA: Neural image assessment. {\it IEEE Transactions on Image Processing} {\bf 27}(8):3998-4011.
+
+\bibitem{jin2018cjs}
+Jin, X.\ et al.\ (2018)
+Predicting aesthetic score distribution through cumulative Jensen-Shannon divergence. In {\it AAAI}.
+
+\bibitem{ren2017personalized}
+Ren, J., Shen, X., Lin, Z., Mech, R.\ and Foran, D.J.\ (2017)
+Personalized image aesthetics. In {\it ICCV}.
+
+\bibitem{zhu2022meta}
+Zhu, H., Li, L., Wu, J., Zhao, S., Ding, G.\ and Shi, G.\ (2022)
+Personalized image aesthetics assessment via meta-learning with bilevel gradient optimization.
+{\it IEEE Transactions on Cybernetics} {\bf 52}(3):1798-1811.
+
+\bibitem{wu2024qbench}
+Wu, H., Zhang, Z., Zhang, E., Chen, C., Liao, L.\ et al.\ (2024)
+Q-Bench: A benchmark for general-purpose foundation models on low-level vision. In {\it ICLR}.
+
+\bibitem{huang2024aesbench}
+Huang, Y.\ et al.\ (2024)
+AesBench: An expert benchmark for multimodal large language models on image aesthetics perception.
+Preprint.
+
+\bibitem{zhou2024uniaa}
+Zhou, Z.\ et al.\ (2024)
+UNIAA: A unified multi-modal image aesthetic assessment baseline and benchmark. Preprint.
+
+\bibitem{huang2024aesexpert}
+Huang, Y.\ et al.\ (2024)
+AesExpert: Towards multi-modality foundation model for image aesthetics perception.
+In {\it ACM Multimedia}.
+
+\bibitem{bisbee2024synthetic}
+Bisbee, J., Clinton, J.D., Dorff, C., Kenkel, B.\ and Larson, J.M.\ (2024)
+Synthetic replacements for human survey data? The perils of large language models.
+{\it Political Analysis}.
+
+\bibitem{santurkar2023whose}
+Santurkar, S., Durmus, E., Ladhak, F., Lee, C., Liang, P.\ and Hashimoto, T.\ (2023)
+Whose opinions do language models reflect? In {\it ICML}.
+
+\bibitem{cheng2023compost}
+Cheng, M., Piccardi, T.\ and Yang, D.\ (2023)
+CoMPosT: Characterizing and evaluating caricature in LLM simulations. In {\it EMNLP}.
+
+\bibitem{fan2023dpok}
+Fan, Y.\ et al.\ (2023)
+DPOK: Reinforcement learning for fine-tuning text-to-image diffusion models. In {\it NeurIPS}.
+
+\bibitem{clark2024draft}
+Clark, K., Vicol, P., Swersky, K.\ and Fleet, D.J.\ (2024)
+Directly fine-tuning diffusion models on differentiable rewards. In {\it ICLR}.
+
+\bibitem{prabhudesai2023alignprop}
+Prabhudesai, M., Goyal, A., Pathak, D.\ and Fragkiadaki, K.\ (2023)
+Aligning text-to-image diffusion models with reward backpropagation. Preprint.
+
+\bibitem{madaan2023selfrefine}
+Madaan, A.\ et al.\ (2023)
+Self-Refine: Iterative refinement with self-feedback. In {\it NeurIPS}.
+
+\bibitem{shinn2023reflexion}
+Shinn, N., Cassano, F., Berman, E., Gopinath, A., Narasimhan, K.\ and Yao, S.\ (2023)
+Reflexion: Language agents with verbal reinforcement learning. In {\it NeurIPS}.
+
+\bibitem{gou2024critic}
+Gou, Z.\ et al.\ (2024)
+CRITIC: Large language models can self-correct with tool-interactive critiquing. In {\it ICLR}.
+
+\bibitem{wu2024sld}
+Wu, T.-H., Lian, L., Gonzalez, J.E., Li, B.\ and Darrell, T.\ (2024)
+Self-correcting LLM-controlled diffusion models. In {\it CVPR}.
+
+\bibitem{wang2024genartist}
+Wang, Z.\ et al.\ (2024)
+GenArtist: Multimodal LLM as an agent for unified image generation and editing. In {\it NeurIPS}.
+
+\bibitem{brooks2023instructpix2pix}
+Brooks, T., Holynski, A.\ and Efros, A.A.\ (2023)
+InstructPix2Pix: Learning to follow image editing instructions. In {\it CVPR}.
+
+\bibitem{xu2024selfbias}
+Xu, W., Zhu, G., Zhao, X., Pan, L., Li, L.\ and Wang, W.Y.\ (2024)
+Pride and prejudice: LLM amplifies self-bias in self-refinement. In {\it ACL}.
+
 \bibitem{radford2021}
 Radford, A., Kim, J.W., Hallacy, C., Ramesh, A., Goh, G.\ et al.\ (2021)
 Learning transferable visual models from natural language supervision (CLIP). In {\it ICML}.
@@ -420,6 +519,27 @@ Experimental study of inequality and unpredictability in an artificial cultural 
 \renewcommand{\thetable}{S\arabic{table}}
 
 This supplement gives the dataset details, the per-experiment figures behind the composite panels of the main paper, additional analyses and ablations, the limitations and honest negatives in full (Section~\ref{sec:limits}) with the future directions they point to (Section~\ref{sup:future}), and finally the exact prompts with two worked examples of the AutoPolish loop. All figures share the palette used in the main text, and every number carries the same 1000-sample bootstrap, clustered by rater and image.
+
+\section{Background and related work in full}
+\label{sup:related}
+
+\subsection{Aesthetics as a multidimensional and subjective signal}
+Computational work on image aesthetics is usually framed as predicting a single quality score, yet the field's own foundational resources show that the target is neither one-dimensional nor universal. AVA \citep{murray2012ava} supplies roughly 250k photographs with score histograms over about 200 voters each, together with semantic and photographic-style labels. AADB \citep{kong2016aadb} adds eleven interpretable attributes, among them interesting content, object emphasis, lighting, color harmony, depth of field, motion blur, rule of thirds, balancing element, repetition, symmetry, and vivid color, and it retains per-rater identifiers so that individual rankings can be studied rather than averaged away. PCCD \citep{chang2017pccd} pairs images with professional critiques along seven axes, and EVA \citep{kang2020eva} collects about 137k votes with four attribute dimensions plus difficulty judgments. The recurring finding across these resources is that a mean opinion score compresses a rich, disagreement-laden distribution into one number.
+
+Two lines of work take that compression seriously. Distribution-based methods predict the full histogram instead of its mean: NIMA \citep{talebi2018nima} optimizes an earth-mover distance loss over the rating distribution, and CJS-CNN \citep{jin2018cjs} reweights by rater reliability. Personalized methods instead model who is rating. Ren et al.\ \citep{ren2017personalized} decompose a score into a generic component and a learned per-user offset, Zhu et al.\ \citep{zhu2022meta} use meta-learning for few-shot adaptation to a new user, and PARA \citep{yang2022para} provides 31k images and 438k per-user annotations with explicit subject traits such as age, gender, education, artistic and photographic experience, and Big-Five personality. This literature establishes that individual taste is partly predictable from viewer attributes, but it stops at the individual: it does not ask what a \emph{population} of viewers would say, nor does it use the predicted reaction to change an image.
+
+\subsection{Vision-language models as aesthetic judges}
+CLIP-based scorers made zero-shot aesthetic prediction practical, and the LAION aesthetic predictor \citep{schuhmann2022} became the de facto filter for web-scale image corpora and a common reward for generative fine-tuning. VILA \citep{ke2023vila} pretrains on image-comment pairs and adapts with a lightweight residual adapter for both score and comment generation. Instruction-tuned multimodal LLMs then made scoring conversational: Q-Bench \citep{wu2024qbench} and Q-Align \citep{wu2024qalign} show that mapping continuous quality onto discrete text-defined levels, from ``excellent'' to ``bad'', yields state-of-the-art mean-opinion-score prediction and transfers across image quality assessment, image aesthetics assessment, and video. AesBench \citep{huang2024aesbench}, UNIAA \citep{zhou2024uniaa}, and AesExpert \citep{huang2024aesexpert} benchmark and instruction-tune specifically for aesthetic perception, consistently reporting that general-purpose multimodal LLMs still trail humans on fine-grained aesthetic reasoning. All of this work targets a single consensus judgment; none simulates a distribution of viewers.
+
+\subsection{Simulating human populations with language models}
+In the text-only setting, language models have been used as stand-ins for human respondents. Argyle et al.\ \citep{argyle2023} show that conditioning GPT-3 on demographic backstories reproduces ANES response distributions with high fidelity, a property they call algorithmic fidelity. Subsequent work is more skeptical. Bisbee et al.\ \citep{bisbee2024synthetic} find that synthetic ANES responses have systematically lower variance than human data and are sensitive to prompt phrasing and model version. Santurkar et al.\ \citep{santurkar2023whose} introduce OpinionQA and show that language-model opinion distributions are badly misaligned with several US demographic groups, with persona steering only partially correcting it. Cheng et al.\ \citep{cheng2023compost} further show that persona prompts can amplify caricature. Two consequences matter for us. First, aggregate-level simulation is more trustworthy than individual-level simulation. Second, calibration and explicit variance controls are prerequisites, not refinements. This literature is almost entirely text; whether persona conditioning transfers to \emph{visual} aesthetic judgment is open.
+
+\subsection{Feedback loops for image generation and editing}
+Reward-driven refinement of generative models is now standard. ImageReward \citep{xu2023imagereward} trains a preference model on 137k comparisons and fine-tunes diffusion through reward feedback learning; DPOK \citep{fan2023dpok} and DDPO \citep{black2024ddpo} apply policy-gradient reinforcement learning against a reward; DRaFT \citep{clark2024draft} and AlignProp \citep{prabhudesai2023alignprop} backpropagate differentiable rewards; and Diffusion-DPO \citep{wallace2024dpo} removes the explicit reward model through direct preference optimization on Pick-a-Pic \citep{kirstain2023pickapic}. In parallel, self-refinement with language feedback, including Self-Refine \citep{madaan2023selfrefine}, Reflexion \citep{shinn2023reflexion}, and CRITIC \citep{gou2024critic}, established the iterative critique-and-revise pattern, and multimodal variants such as SLD \citep{wu2024sld} and GenArtist \citep{wang2024genartist} use a vision-language model to detect faults and dispatch corrections. Instruction-based editors including InstructPix2Pix \citep{brooks2023instructpix2pix} and FLUX.1-Kontext \citep{flux2024} provide the actuator such loops require. Two gaps persist. First, every reward here is a scalar consensus signal, so none represents an audience. Second, when the same model both proposes and evaluates an edit, improvement can be self-fulfilling, a circularity that work on self-bias in language-model evaluation documents directly \citep{xu2024selfbias}.
+
+\subsection{Positioning}
+Our contribution sits at the intersection of these four lines. From personalized aesthetics we take viewer attributes seriously, but relocate the prediction target from the individual to the group. From population simulation with language models we take persona conditioning and the discipline of calibration, but move it from text surveys to visual aesthetic judgment. From the reward-optimization literature we take the loop, but replace the scalar consensus reward with a plural audience whose critique is natural language, and enforce a strict separation between the critic that proposes and the frozen, held-out judge that scores.
+
 
 \section{Datasets}
 Table~\ref{tab:data} gives the four corpora in full. The ordering that matters is persona richness, which decreases from PARA and LAPIS to EVA and which turns out to be the single best predictor of where persona-dependent claims hold.
