@@ -567,6 +567,8 @@ Experimental study of inequality and unpredictability in an artificial cultural 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ------------------------ Supplementary Material ------------------------
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Skipped when built through autopolish_main.tex (which defines \mainonly).
+\ifdefined\mainonly\else
 \newpage
 \begin{center}
   \rule{\textwidth}{4pt}\\[0.16in]
@@ -957,5 +959,6 @@ Add natural lighting and plants/artwork to the desks to enhance warmth, comfort,
   \label{fig:ex-edit}
 \end{figure}
 
+\fi % end of supplementary material (see \mainonly above)
 
 \end{document}
