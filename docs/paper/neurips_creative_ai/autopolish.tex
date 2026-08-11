@@ -99,9 +99,9 @@ In short, our contributions are:
 \begin{itemize}[leftmargin=1.4em, itemsep=2pt, topsep=2pt, parsep=0pt]
 \item We show that aesthetic taste is plural: as little as 19\% of a rating is shared between individuals, while a group's average is reproduced by a fresh set of viewers at up to $0.96$ correlation.
 
-\item We show that a role-played synthetic audience is a usable proxy for a real crowd. It reproduces the differences in taste between viewer groups at a correlation $9\times$ that of a persona-free VLM.
+\item We show that a role-played synthetic audience is a usable proxy for a real crowd. It reproduces the differences in taste between viewer groups at a correlation $9\times$ that of a naive VLM.
 
-\item We show that adding the synthetic audience as the critic in an auto-research style editing loop draws $3\times$ reacher guidance than a generic critic and measurably improves aesthetic scores.
+\item We show that adding the synthetic audience as the critic in an auto-research style editing loop draws $3\times$ more practical guidance than a generic critic and measurably improves aesthetic scores.
 \end{itemize}
 
 \begin{figure}[t]
@@ -299,203 +299,266 @@ Omitted for anonymous review.
 
 \bibitem{argyle2023}
 Argyle, L.P., Busby, E.C., Fulda, N., Gubler, J.R., Rytting, C.\ and Wingate, D.\ (2023)
-Out of one, many: Using language models to simulate human samples. {\it Political Analysis} {\bf 31}(3):337-351.
+Out of one, many: Using language models to simulate human samples.
+{\it Political Analysis} {\bf 31}(3):337--351.
 
 \bibitem{uma2021}
 Uma, A.N., Fornaciari, T., Hovy, D., Paun, S., Plank, B.\ and Poesio, M.\ (2021)
-Learning from disagreement: A survey. {\it Journal of Artificial Intelligence Research} {\bf 72}:1385-1470.
+Learning from disagreement: A survey.
+{\it Journal of Artificial Intelligence Research} {\bf 72}:1385--1470.
 
 \bibitem{plank2022}
 Plank, B.\ (2022)
-The ``problem'' of human label variation: On ground truth in data, modeling and evaluation. In {\it EMNLP}.
+The ``problem'' of human label variation: On ground truth in data, modeling and evaluation.
+In {\it Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing (EMNLP)}.
 
 \bibitem{yang2022para}
 Yang, Y., Xu, L., Li, L., Qie, N., Li, Y., Zhang, P.\ and Guo, Y.\ (2022)
-Personalized image aesthetics assessment with rich attributes (PARA). In {\it CVPR}.
+Personalized image aesthetics assessment with rich attributes.
+In {\it Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)}.
 
 \bibitem{murray2012ava}
 Murray, N., Marchesotti, L.\ and Perronnin, F.\ (2012)
-AVA: A large-scale database for aesthetic visual analysis. In {\it CVPR}.
+AVA: A large-scale database for aesthetic visual analysis.
+In {\it Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR)}.
 
 \bibitem{ke2023vila}
 Ke, J., Ye, K., Yu, J., Wu, Y., Milanfar, P.\ and Yang, F.\ (2023)
-VILA: Learning image aesthetics from user comments with vision-language pretraining. In {\it CVPR}.
+VILA: Learning image aesthetics from user comments with vision-language pretraining.
+In {\it Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)}.
 
 \bibitem{wu2024qalign}
-Wu, H., Zhang, Z., Zhang, W., Chen, C., Liao, L.\ et al.\ (2024)
-Q-Align: Teaching LMMs for visual scoring via discrete text-defined levels. In {\it ICML}.
+Wu, H., Zhang, Z., Zhang, W., Chen, C., Liao, L., Li, C., Gao, Y., Wang, A., Zhang, E., Sun, W.,
+Yan, Q., Min, X., Zhai, G.\ and Lin, W.\ (2024)
+Q-Align: Teaching LMMs for visual scoring via discrete text-defined levels.
+In {\it Proceedings of the 41st International Conference on Machine Learning (ICML)}.
 
 \bibitem{rapidata2024}
-Rapidata (2024)
-Crowd-sourced human preferences over AI-generated images. Dataset.
+Rapidata AG (2024)
+700k human preference dataset: FLUX.1, Stable Diffusion 3, MidJourney and DALL$\cdot$E 3.
+Hugging Face dataset.
+\url{https://huggingface.co/datasets/Rapidata/700k_Human_Preference_Dataset_FLUX_SD3_MJ_DALLE3}
 
 \bibitem{wang2024qwen2vl}
-Wang, P., Bai, S., Tan, S., Wang, S., Fan, Z., Bai, J.\ et al.\ (2024)
-Qwen2-VL: Enhancing vision-language model's perception of the world at any resolution. {\it arXiv:2409.12191}.
+Wang, P., Bai, S., Tan, S., Wang, S., Fan, Z., Bai, J., Chen, K., Liu, X., Wang, J., Ge, W.,
+Fan, Y., Dang, K., Du, M., Ren, X., Men, R., Liu, D., Zhou, C., Zhou, J.\ and Lin, J.\ (2024)
+Qwen2-VL: Enhancing vision-language model's perception of the world at any resolution.
+{\it arXiv preprint arXiv:2409.12191}.
 
 \bibitem{flux2024}
-Black Forest Labs (2024)
-FLUX.1-Kontext: In-context image editing. Technical report.
+Black Forest Labs, Batifol, S., Blattmann, A., Boesel, F., Consul, S., Diagne, C., Dockhorn, T.,
+English, J., English, Z., Esser, P., Kulal, S., Lacey, K., Levi, Y., Li, C., Lorenz, D.,
+M\"uller, J., Podell, D., Rombach, R., Saini, H., Sauer, A.\ and Smith, L.\ (2025)
+FLUX.1 Kontext: Flow matching for in-context image generation and editing in latent space.
+{\it arXiv preprint arXiv:2506.15742}.
 
 \bibitem{schuhmann2022}
-Schuhmann, C., Beaumont, R., Vencu, R., Gordon, C., Wightman, R.\ et al.\ (2022)
-LAION-5B: An open large-scale dataset for training next generation image-text models. In {\it NeurIPS Datasets and Benchmarks}.
+Schuhmann, C., Beaumont, R., Vencu, R., Gordon, C., Wightman, R., Cherti, M., Coombes, T.,
+Katta, A., Mullis, C., Wortsman, M., Schramowski, P., Kundurthy, S., Crowson, K., Schmidt, L.,
+Kaczmarczyk, R.\ and Jitsev, J.\ (2022)
+LAION-5B: An open large-scale dataset for training next generation image-text models.
+In {\it Advances in Neural Information Processing Systems 35 (NeurIPS), Datasets and Benchmarks Track}.
 
 \bibitem{xu2023imagereward}
-Xu, J., Liu, X., Wu, Y., Tong, Y., Li, Q.\ et al.\ (2023)
-ImageReward: Learning and evaluating human preferences for text-to-image generation. In {\it NeurIPS}.
+Xu, J., Liu, X., Wu, Y., Tong, Y., Li, Q., Ding, M., Tang, J.\ and Dong, Y.\ (2023)
+ImageReward: Learning and evaluating human preferences for text-to-image generation.
+In {\it Advances in Neural Information Processing Systems 36 (NeurIPS)}.
 
 \bibitem{kirstain2023pickapic}
 Kirstain, Y., Polyak, A., Singer, U., Matiana, S., Penna, J.\ and Levy, O.\ (2023)
-Pick-a-Pic: An open dataset of user preferences for text-to-image generation. In {\it NeurIPS}.
+Pick-a-Pic: An open dataset of user preferences for text-to-image generation.
+In {\it Advances in Neural Information Processing Systems 36 (NeurIPS)}.
 
 \bibitem{black2024ddpo}
 Black, K., Janner, M., Du, Y., Kostrikov, I.\ and Levine, S.\ (2024)
-Training diffusion models with reinforcement learning. In {\it ICLR}.
+Training diffusion models with reinforcement learning.
+In {\it International Conference on Learning Representations (ICLR)}.
 
 \bibitem{wallace2024dpo}
-Wallace, B., Dang, M., Rafailov, R., Zhou, L., Lou, A.\ et al.\ (2024)
-Diffusion model alignment using direct preference optimization. In {\it CVPR}.
+Wallace, B., Dang, M., Rafailov, R., Zhou, L., Lou, A., Purushwalkam, S., Ermon, S., Xiong, C.,
+Joty, S.\ and Naik, N.\ (2024)
+Diffusion model alignment using direct preference optimization.
+In {\it Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)}.
 
 \bibitem{kong2016aadb}
 Kong, S., Shen, X., Lin, Z., Mech, R.\ and Fowlkes, C.\ (2016)
-Photo aesthetics ranking network with attributes and content adaptation. In {\it ECCV}.
+Photo aesthetics ranking network with attributes and content adaptation.
+In {\it Proceedings of the European Conference on Computer Vision (ECCV)}.
 
 \bibitem{chang2017pccd}
 Chang, K.-Y., Lu, K.-H.\ and Chen, C.-S.\ (2017)
-Aesthetic critiques generation for photos. In {\it ICCV}.
+Aesthetic critiques generation for photos.
+In {\it Proceedings of the IEEE International Conference on Computer Vision (ICCV)}.
 
 \bibitem{kang2020eva}
 Kang, C., Valenzise, G.\ and Dufaux, F.\ (2020)
 EVA: An explainable visual aesthetics dataset.
-In {\it Joint Workshop on Aesthetic and Technical Quality Assessment of Multimedia and Media Analytics for Societal Trends (ACM MM)}.
+In {\it Proceedings of the Joint Workshop on Aesthetic and Technical Quality Assessment of
+Multimedia and Media Analytics for Societal Trends (ATQAM/MAST), ACM International Conference
+on Multimedia}, pp.\ 5--13.
 
 \bibitem{maerten2025lapis}
 Maerten, A.-S., Chen, L.-W., De Winter, S., Bossens, C.\ and Wagemans, J.\ (2025)
-LAPIS: A novel dataset for personalized image aesthetic assessment. In {\it CVPR}.
+LAPIS: A novel dataset for personalized image aesthetic assessment.
+In {\it Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)
+Workshops, Workshop on AI for Creative Visual Content Generation, Editing and Understanding (CVEU)}.
 
 \bibitem{talebi2018nima}
 Talebi, H.\ and Milanfar, P.\ (2018)
-NIMA: Neural image assessment. {\it IEEE Transactions on Image Processing} {\bf 27}(8):3998-4011.
+NIMA: Neural image assessment.
+{\it IEEE Transactions on Image Processing} {\bf 27}(8):3998--4011.
 
 \bibitem{jin2018cjs}
-Jin, X.\ et al.\ (2018)
-Predicting aesthetic score distribution through cumulative Jensen-Shannon divergence. In {\it AAAI}.
+Jin, X., Wu, L., Li, X., Chen, S., Peng, S., Chi, J., Ge, S., Song, C.\ and Zhao, G.\ (2018)
+Predicting aesthetic score distribution through cumulative Jensen-Shannon divergence.
+In {\it Proceedings of the AAAI Conference on Artificial Intelligence (AAAI)}.
 
 \bibitem{ren2017personalized}
 Ren, J., Shen, X., Lin, Z., Mech, R.\ and Foran, D.J.\ (2017)
-Personalized image aesthetics. In {\it ICCV}.
+Personalized image aesthetics.
+In {\it Proceedings of the IEEE International Conference on Computer Vision (ICCV)}.
 
 \bibitem{zhu2022meta}
 Zhu, H., Li, L., Wu, J., Zhao, S., Ding, G.\ and Shi, G.\ (2022)
 Personalized image aesthetics assessment via meta-learning with bilevel gradient optimization.
-{\it IEEE Transactions on Cybernetics} {\bf 52}(3):1798-1811.
+{\it IEEE Transactions on Cybernetics} {\bf 52}(3):1798--1811.
 
 \bibitem{wu2024qbench}
-Wu, H., Zhang, Z., Zhang, E., Chen, C., Liao, L.\ et al.\ (2024)
-Q-Bench: A benchmark for general-purpose foundation models on low-level vision. In {\it ICLR}.
+Wu, H., Zhang, Z., Zhang, E., Chen, C., Liao, L., Wang, A., Li, C., Sun, W., Yan, Q., Zhai, G.\
+and Lin, W.\ (2024)
+Q-Bench: A benchmark for general-purpose foundation models on low-level vision.
+In {\it International Conference on Learning Representations (ICLR)}.
 
 \bibitem{huang2024aesbench}
-Huang, Y.\ et al.\ (2024)
+Huang, Y., Yuan, Q., Sheng, X., Yang, Z., Wu, H., Chen, P., Yang, Y., Li, L.\ and Lin, W.\ (2024)
 AesBench: An expert benchmark for multimodal large language models on image aesthetics perception.
-Preprint.
+{\it arXiv preprint arXiv:2401.08276}.
 
 \bibitem{zhou2024uniaa}
-Zhou, Z.\ et al.\ (2024)
-UNIAA: A unified multi-modal image aesthetic assessment baseline and benchmark. Preprint.
+Zhou, Z., Wang, Q., Lin, B., Su, Y., Chen, R., Tao, X., Zheng, A., Yuan, L., Wan, P.\ and
+Zhang, D.\ (2024)
+UNIAA: A unified multi-modal image aesthetic assessment baseline and benchmark.
+{\it arXiv preprint arXiv:2404.09619}.
 
 \bibitem{huang2024aesexpert}
-Huang, Y.\ et al.\ (2024)
+Huang, Y., Sheng, X., Yang, Z., Yuan, Q., Duan, Z., Chen, P., Li, L., Lin, W.\ and Shi, G.\ (2024)
 AesExpert: Towards multi-modality foundation model for image aesthetics perception.
-In {\it ACM Multimedia}.
+In {\it Proceedings of the 32nd ACM International Conference on Multimedia (ACM MM)}.
 
 \bibitem{bisbee2024synthetic}
 Bisbee, J., Clinton, J.D., Dorff, C., Kenkel, B.\ and Larson, J.M.\ (2024)
 Synthetic replacements for human survey data? The perils of large language models.
-{\it Political Analysis}.
+{\it Political Analysis} {\bf 32}(4):401--416.
 
 \bibitem{santurkar2023whose}
 Santurkar, S., Durmus, E., Ladhak, F., Lee, C., Liang, P.\ and Hashimoto, T.\ (2023)
-Whose opinions do language models reflect? In {\it ICML}.
+Whose opinions do language models reflect?
+In {\it Proceedings of the 40th International Conference on Machine Learning (ICML)}.
 
 \bibitem{cheng2023compost}
 Cheng, M., Piccardi, T.\ and Yang, D.\ (2023)
-CoMPosT: Characterizing and evaluating caricature in LLM simulations. In {\it EMNLP}.
+CoMPosT: Characterizing and evaluating caricature in LLM simulations.
+In {\it Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing (EMNLP)}.
 
 \bibitem{fan2023dpok}
-Fan, Y.\ et al.\ (2023)
-DPOK: Reinforcement learning for fine-tuning text-to-image diffusion models. In {\it NeurIPS}.
+Fan, Y., Watkins, O., Du, Y., Liu, H., Ryu, M., Boutilier, C., Abbeel, P., Ghavamzadeh, M.,
+Lee, K.\ and Lee, K.\ (2023)
+DPOK: Reinforcement learning for fine-tuning text-to-image diffusion models.
+In {\it Advances in Neural Information Processing Systems 36 (NeurIPS)}.
 
 \bibitem{clark2024draft}
 Clark, K., Vicol, P., Swersky, K.\ and Fleet, D.J.\ (2024)
-Directly fine-tuning diffusion models on differentiable rewards. In {\it ICLR}.
+Directly fine-tuning diffusion models on differentiable rewards.
+In {\it International Conference on Learning Representations (ICLR)}.
 
 \bibitem{prabhudesai2023alignprop}
 Prabhudesai, M., Goyal, A., Pathak, D.\ and Fragkiadaki, K.\ (2023)
-Aligning text-to-image diffusion models with reward backpropagation. Preprint.
+Aligning text-to-image diffusion models with reward backpropagation.
+{\it arXiv preprint arXiv:2310.03739}.
 
 \bibitem{madaan2023selfrefine}
-Madaan, A.\ et al.\ (2023)
-Self-Refine: Iterative refinement with self-feedback. In {\it NeurIPS}.
+Madaan, A., Tandon, N., Gupta, P., Hallinan, S., Gao, L., Wiegreffe, S., Alon, U., Dziri, N.,
+Prabhumoye, S., Yang, Y., Gupta, S., Majumder, B.P., Hermann, K., Welleck, S., Yazdanbakhsh, A.\
+and Clark, P.\ (2023)
+Self-Refine: Iterative refinement with self-feedback.
+In {\it Advances in Neural Information Processing Systems 36 (NeurIPS)}.
 
 \bibitem{shinn2023reflexion}
 Shinn, N., Cassano, F., Berman, E., Gopinath, A., Narasimhan, K.\ and Yao, S.\ (2023)
-Reflexion: Language agents with verbal reinforcement learning. In {\it NeurIPS}.
+Reflexion: Language agents with verbal reinforcement learning.
+In {\it Advances in Neural Information Processing Systems 36 (NeurIPS)}.
 
 \bibitem{gou2024critic}
-Gou, Z.\ et al.\ (2024)
-CRITIC: Large language models can self-correct with tool-interactive critiquing. In {\it ICLR}.
+Gou, Z., Shao, Z., Gong, Y., Shen, Y., Yang, Y., Duan, N.\ and Chen, W.\ (2024)
+CRITIC: Large language models can self-correct with tool-interactive critiquing.
+In {\it International Conference on Learning Representations (ICLR)}.
 
 \bibitem{wu2024sld}
 Wu, T.-H., Lian, L., Gonzalez, J.E., Li, B.\ and Darrell, T.\ (2024)
-Self-correcting LLM-controlled diffusion models. In {\it CVPR}.
+Self-correcting LLM-controlled diffusion models.
+In {\it Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)}.
 
 \bibitem{wang2024genartist}
-Wang, Z.\ et al.\ (2024)
-GenArtist: Multimodal LLM as an agent for unified image generation and editing. In {\it NeurIPS}.
+Wang, Z., Li, A., Li, Z.\ and Liu, X.\ (2024)
+GenArtist: Multimodal LLM as an agent for unified image generation and editing.
+In {\it Advances in Neural Information Processing Systems 37 (NeurIPS)}.
 
 \bibitem{brooks2023instructpix2pix}
 Brooks, T., Holynski, A.\ and Efros, A.A.\ (2023)
-InstructPix2Pix: Learning to follow image editing instructions. In {\it CVPR}.
+InstructPix2Pix: Learning to follow image editing instructions.
+In {\it Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)}.
 
 \bibitem{xu2024selfbias}
 Xu, W., Zhu, G., Zhao, X., Pan, L., Li, L.\ and Wang, W.Y.\ (2024)
-Pride and prejudice: LLM amplifies self-bias in self-refinement. In {\it ACL}.
+Pride and prejudice: LLM amplifies self-bias in self-refinement.
+In {\it Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics
+(ACL), Volume 1: Long Papers}, pp.\ 15474--15492.
 
 \bibitem{radford2021}
-Radford, A., Kim, J.W., Hallacy, C., Ramesh, A., Goh, G.\ et al.\ (2021)
-Learning transferable visual models from natural language supervision (CLIP). In {\it ICML}.
+Radford, A., Kim, J.W., Hallacy, C., Ramesh, A., Goh, G., Agarwal, S., Sastry, G., Askell, A.,
+Mishkin, P., Clark, J., Krueger, G.\ and Sutskever, I.\ (2021)
+Learning transferable visual models from natural language supervision.
+In {\it Proceedings of the 38th International Conference on Machine Learning (ICML)}.
 
 \bibitem{oquab2023}
-Oquab, M., Darcet, T., Moutakanni, T., Vo, H., Szafraniec, M.\ et al.\ (2023)
-DINOv2: Learning robust visual features without supervision. {\it Transactions on Machine Learning Research}.
+Oquab, M., Darcet, T., Moutakanni, T., Vo, H., Szafraniec, M., Khalidov, V., Fernandez, P.,
+Haziza, D., Massa, F., El-Nouby, A., Assran, M., Ballas, N., Galuba, W., Howes, R., Huang, P.-Y.,
+Li, S.-W., Misra, I., Rabbat, M., Sharma, V., Synnaeve, G., Xu, H., J\'egou, H., Mairal, J.,
+Labatut, P., Joulin, A.\ and Bojanowski, P.\ (2024)
+DINOv2: Learning robust visual features without supervision.
+{\it Transactions on Machine Learning Research}.
 
 \bibitem{niculescu2005}
 Niculescu-Mizil, A.\ and Caruana, R.\ (2005)
-Predicting good probabilities with supervised learning. In {\it ICML}.
+Predicting good probabilities with supervised learning.
+In {\it Proceedings of the 22nd International Conference on Machine Learning (ICML)}.
 
 \bibitem{shrout1979}
 Shrout, P.E.\ and Fleiss, J.L.\ (1979)
-Intraclass correlations: Uses in assessing rater reliability. {\it Psychological Bulletin} {\bf 86}(2):420-428.
+Intraclass correlations: Uses in assessing rater reliability.
+{\it Psychological Bulletin} {\bf 86}(2):420--428.
 
 \bibitem{pamela2026}
-PAMELA (2026)
-Personalized aesthetic reward modeling and prompt optimization. Preprint.
+Maerten, A.-S., Verwiebe, J., Karthik, S., Prabhu, A., Wagemans, J.\ and Bethge, M.\ (2026)
+Personalizing text-to-image generation to individual taste.
+{\it arXiv preprint arXiv:2604.07427}.
 
 \bibitem{aesbiasbench2025}
-AesBiasBench (2025)
-Benchmarking subgroup bias in aesthetic assessment. Preprint.
-
-\bibitem{individual2025}
-Individual differences in computational aesthetics (2025). Preprint.
+Li, K., Po, L.-M., Yang, H., Xu, X., Liu, K.\ and Zhao, Y.\ (2025)
+AesBiasBench: Evaluating bias and alignment in multimodal language models for personalized
+image aesthetic assessment.
+In {\it Proceedings of the 2025 Conference on Empirical Methods in Natural Language
+Processing (EMNLP)}.
 
 \bibitem{hu2022lora}
 Hu, E.J., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang, S., Wang, L.\ and Chen, W.\ (2022)
-LoRA: Low-rank adaptation of large language models. {\it ICLR}.
+LoRA: Low-rank adaptation of large language models.
+In {\it International Conference on Learning Representations (ICLR)}.
 
 \bibitem{salganik2006}
 Salganik, M.J., Dodds, P.S.\ and Watts, D.J.\ (2006)
-Experimental study of inequality and unpredictability in an artificial cultural market. {\it Science} {\bf 311}(5762):854-856.
+Experimental study of inequality and unpredictability in an artificial cultural market.
+{\it Science} {\bf 311}(5762):854--856.
 
 \end{thebibliography}
 \endgroup
