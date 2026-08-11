@@ -25,7 +25,7 @@ import theme
 
 DEFAULT_OUTPUT_ROOT = os.path.join(REPO, "outputs", "c4_auto_research")
 CONDITIONS = ["static", "blind", "society", "reward_only"]
-LABELS = {"static": "static", "blind": "blind VLM", "society": "society",
+LABELS = {"static": "static", "blind": "blind VLM", "society": "AutoPolish",
           "reward_only": "reward-only"}
 N_SHOW = 5
 

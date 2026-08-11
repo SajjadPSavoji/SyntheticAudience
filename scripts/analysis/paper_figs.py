@@ -45,7 +45,7 @@ PAPER = os.path.join(REPO, "docs", "paper")
 # re-tuned per venue); --figs points the build at a different venue directory.
 FIGS = os.path.join(PAPER, "neurips_creative_ai", "figs")
 DSS = ["PARA", "EVA", "LAPIS"]
-C4LABELS = {"static": "static string", "blind": "blind VLM", "society": "society",
+C4LABELS = {"static": "static string", "blind": "blind VLM", "society": "AutoPolish",
             "reward_only": "reward-only (oracle)"}
 
 
