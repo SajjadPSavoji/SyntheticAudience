@@ -205,9 +205,9 @@ Averaging over the panel is not enough on its own, because the judge's error is 
 
 \section{Experimental setup}
 
-\paragraph{Data.} We use three datasets of human-rated aesthetics. Each record pairs an image with the rating of one individual rater. \textbf{PARA} \citep{yang2022para} contains 4{,}000 photographs and $\sim$52k ratings. It offers the richest persona fields: age, gender, education, art and photography experience, and Big-Five traits. \textbf{EVA} consists of photographs taken from AVA \citep{murray2012ava} and provides 4{,}070 images and 137k ratings, but its persona fields are limited to age, gender, region, and photographic level. \textbf{LAPIS} provides 4{,}000 paintings and 90k ratings, with nationality, art interest, and age. For generated content we use \textbf{Rapidata} \citep{rapidata2024}, which contains 23{,}445 crowd votes on 898 pairs of AI-generated images. The raters come from 120 countries, and each vote records the rater's country and language. All ratings are normalized to $[0,1]$.
+\paragraph{Data.} We use three datasets of human-rated aesthetics. Each record pairs an image with the rating of one individual rater. PARA \citep{yang2022para} contains 4{,}000 photographs and $\sim$52k ratings. It offers the richest persona fields: age, gender, education, art and photography experience, and Big-Five traits. EVA \citep{kang2020eva} consists of photographs taken from AVA \citep{murray2012ava} and provides 4{,}070 images and 137k ratings, but its persona fields are limited to age, gender, region, and photographic level. LAPIS \citep{maerten2025lapis} provides 4{,}000 paintings and 90k ratings, with nationality, art interest, and age. For generated content we use Rapidata \citep{rapidata2024}, which contains 23{,}445 crowd votes on 898 pairs of AI-generated images. The raters come from 120 countries, and each vote records the rater's country and language.
 
-\paragraph{Protocol and metrics.} The primary regime is \emph{cold start}: we hold out a disjoint 20\% of \emph{users} and predict for a viewer the model has no data on, from the persona card alone, adding image-disjoint and, for paintings, artist-disjoint folds for leakage control. Our decisive metric is \textbf{between-group separation}, the correlation between predicted and observed slice-to-slice gaps on the same image, against a persona-blind control whose expected value is zero. We also report group error against a population-mean prior, the panel-size curve, crowd agreement, and, for AutoPolish, held-out gain, identity drift, and complaint diversity. Every headline number carries a 1000-sample bootstrap 95\% confidence interval, clustered by rater and image where both apply, with Holm correction across the slice sweep; a result counts only if its interval excludes the null \emph{and} sits within the ceiling established next.
+\paragraph{Protocol and metrics.} We use the same judge in two versions: a persona-blind control, and a persona-conditioned one. Running many instances of the persona-conditioned judge, one per viewer, gives us the synthetic audience, and we vary how many instances we run. We always test on raters the model has never seen. What we mainly measure is whether the audience gets the \emph{differences between groups} right: on one image, do the gaps we predict between two groups of viewers match the gaps the real raters show, and how does the size of the audience affect this? For AutoPolish we report how much the image improves, how much it still looks like the original, and how varied the critiques are. Every headline number carries a bootstrap 95\% confidence interval.
 
 
 \section{Results}
@@ -368,6 +368,10 @@ Aesthetic critiques generation for photos. In {\it ICCV}.
 Kang, C., Valenzise, G.\ and Dufaux, F.\ (2020)
 EVA: An explainable visual aesthetics dataset.
 In {\it Joint Workshop on Aesthetic and Technical Quality Assessment of Multimedia and Media Analytics for Societal Trends (ACM MM)}.
+
+\bibitem{maerten2025lapis}
+Maerten, A.-S., Chen, L.-W., De Winter, S., Bossens, C.\ and Wagemans, J.\ (2025)
+LAPIS: A novel dataset for personalized image aesthetic assessment. In {\it CVPR}.
 
 \bibitem{talebi2018nima}
 Talebi, H.\ and Milanfar, P.\ (2018)
