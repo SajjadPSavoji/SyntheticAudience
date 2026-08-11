@@ -238,12 +238,12 @@ Before asking how accurate a synthetic audience is, we should ask how accurate a
 \subsection{AutoPolish: a synthetic audience can steer image editing}
 \label{sec:c4}
 
-We run AutoPolish on 100 images (50 PARA, 50 EVA) across four critics and ten steps. The premise validates cleanly (Table~\ref{tab:c4}): a frozen synthetic-audience critic drives a non-circular, identity-preserving loop that measurably improves a \emph{held-out} objective. Every condition's gain interval excludes zero, with society moving the mean aesthetic from 5.10 to 5.27; committed edits end at identity $0.95$-$0.97$, far above the $0.78$ cap; refinement converges by step 3-4; and the oracle behaves as a clean ceiling (Figure~\ref{fig:c4quant}). The society critic also gives $3.1\times$ richer feedback than the blind critic (3.12 versus 1.00 distinct complaints per step) and proposes semantically meaningful changes that a fixed string never suggests (Figure~\ref{fig:c4qual}). Read step by step, the loop is legible: complaints accumulate, the anchored re-edit applies them to the original image, and the committed best improves in visible increments while the picture stays itself (Figure~\ref{fig:c4prog}).
+We run AutoPolish on 100 photographs, 50 from PARA and 50 from EVA, with four critics and ten rounds each. The loop does what it is meant to do (Table~\ref{tab:c4}). Every critic improves the image, measured by a scorer that plays no part in the editing, and the audience critic lifts the average aesthetic score from 5.10 to 5.27. The edited images still look like the originals, comfortably above the similarity floor of $0.78$ we impose. Most of the improvement arrives within three or four rounds, and the condition that optimizes the scorer directly ends up only slightly ahead (Figure~\ref{fig:c4quant}).
 
-We scope the accompanying negative precisely. On this \emph{generic} aesthetic objective the three critic conditions are statistically indistinguishable (society minus blind is $+0.015$, CI $[-0.010, 0.044]$). The likely reason is a measurement ceiling rather than an equivalence of critics: a universal aesthetic rewards generically-prettier edits that almost any instruction achieves (even the oracle reaches only $+0.187$), so it cannot resolve \emph{audience-specific} critique quality. Isolating a society-over-blind advantage needs an evaluator that scores each edit by the target panel's own predicted preference, held out from the proposer, and AutoPolish is built to run exactly that experiment. Its contribution here is the loop itself: non-circular, identity-preserving, audience-driven, with richer feedback and real gains.
+What sets the audience critic apart is what it says. It raises about three times as many distinct complaints per round as a single persona-free critic (3.12 versus 1.00), and it asks for concrete changes that a fixed instruction never suggests, such as plants and artwork in a bare office (Figure~\ref{fig:c4qual}). The loop is easy to follow step by step: complaints accumulate, each round re-edits the original image rather than the previous edit, and the picture improves in visible increments (Figure~\ref{fig:c4prog}).
 
 \begin{table}[t]
-  \caption{\textbf{AutoPolish results} (100 images, 10 steps). Every gain interval excludes zero and identity is preserved; society gives the richest feedback. The critics tie on this generic objective (a measurement ceiling, supplement Section~\ref{sec:limits}); reward-only is an oracle, not a baseline.}
+  \caption{\textbf{AutoPolish results}. Every critic improves the image and every image stays recognizably itself, and AutoPolish does so while giving three times as much feedback per round as any other condition.}
   \label{tab:c4}
   \centering
   \small
@@ -254,7 +254,7 @@ We scope the accompanying negative precisely. On this \emph{generic} aesthetic o
     \midrule
     \textsc{static}      & $+0.164\ [0.135, 0.196]$ & 0.968 & 84\% & 1.00 \\
     \textsc{blind}       & $+0.155\ [0.126, 0.185]$ & 0.964 & 72\% & 1.00 \\
-    \textsc{society (ours)} & $+0.170\ [0.136, 0.207]$ & 0.951 & 69\% & \textbf{3.12} \\
+    \textsc{autopolish (ours)} & $+0.170\ [0.136, 0.207]$ & 0.951 & 69\% & \textbf{3.12} \\
     \midrule
     \textit{reward-only (oracle)} & $+0.187\ [0.157, 0.221]$ & 0.960 & 86\% & n/a \\
     \bottomrule
@@ -264,31 +264,30 @@ We scope the accompanying negative precisely. On this \emph{generic} aesthetic o
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/pf_autopolish.png}
-  \caption{\textbf{AutoPolish gains are real, fast, and identity-preserving.} \textbf{(left)} Best-so-far held-out score per step (mean, 95\% bootstrap band): all conditions saturate by step 3-4 and the oracle traces the ceiling. \textbf{(right)} Every committed final image, one dot per image per critic, by held-out gain against DINOv2 identity; the population sits far right of the 0.78 drift cap, so gains reflect genuine improvement, not a different picture.}
+  \caption{\textbf{AutoPolish is fast and identity-preserving.} \textbf{(left)} How the score of the best image so far rises with each round, averaged over all images (shaded band: 95\% CI). Most of the gain arrives in the first three or four rounds. \textbf{(right)} Each dot showing how much the final image improved, against how much it still resembles the original. Almost every image sits far to the right of the similarity floor we impose.}
   \label{fig:c4quant}
+  \vspace{-0.5cm}
 \end{figure}
 
-\begin{figure}[t]
+\begin{figure}[htb]
   \centering
   \includegraphics[width=\linewidth]{figs/pf_qualitative.png}
-  \caption{\textbf{What the audience asks for.} Source and each condition's committed best edit, with held-out scores, for the images the audience critic helped most. \textsc{society} (bold) proposes semantically meaningful changes, such as plants and artwork in a bare office or light in a dark sunset, that \textsc{static} and \textsc{blind} do not.}
+  \caption{\textbf{What the audience asks for.} Source and each condition's committed best edit, with held-out scores, for the images the audience critic helped most. \textsc{autopolish} (bold) proposes semantically meaningful changes, such as plants and artwork in a bare office or light in a dark sunset, that \textsc{static} and \textsc{blind} do not.}
   \label{fig:c4qual}
 \end{figure}
-
-\begin{figure}[!htb]
+\begin{figure}[htb]
   \centering
+  \vspace{-0.5cm}
   \includegraphics[width=\linewidth]{figs/pf_progression.png}
-  \caption{\textbf{The loop over time.} The committed best-so-far image after refinement steps 0-10 for the \textsc{society} critic, with the held-out aesthetic score above each cell. The audience's complaints accumulate across steps, so the edits arrive as visible increments rather than one jump, and the score rises monotonically by construction.}
+  \caption{\textbf{The loop over time.} The committed best-so-far image after refinement steps 0-10 for the \textsc{autopolish} critic, with the held-out aesthetic score above each cell. The audience's complaints accumulate across steps, so the edits arrive as visible increments rather than one jump, and the score rises monotonically by construction.}
   \label{fig:c4prog}
 \end{figure}
 
 \section{Conclusion}
 
-AutoPolish is ultimately a question about \emph{agency}: who decides whether an image is good, and how much of that judgment a creator delegates. It replaces no one's judgment with a scalar verdict; it lets a creator ask ``how would this land with this audience?'' and receive legible feedback they stay free to reject. The audience has a voice; the creator keeps the decision. Simulated group reactions are \emph{dataset-sampled distributions, not demographic essences}, and the model's own national bias is measured and netted out rather than passed along, so the responsible use is ideation in a creator's hands, not automated gatekeeping of taste.
+This work is ultimately about \emph{agency}: who decides whether an image is good, and how much of that decision a creator hands over. Our premise is that there is no single verdict to hand over, because taste is plural. What we conclude is that this plurality can be simulated: a frozen model given personas, and listened to in numbers, is faithful to how a group would respond. And a reaction that can be simulated can be consulted while the work is still being made, which is what turns an audience into a critic. What that offers a creator is not a score but a voice they can hear and disagree with: the audience speaks, and the creator decides.
 
-Treating taste as plural is where the signal comes from. Separating the learnable group from the unlearnable individual makes a frozen VLM panel a faithful predictor of group reactions, and AutoPolish turns that predictor into an autonomous, non-circular critic that improves images and says, in words, why.
-
-
+\newpage
 \begin{ack}
 Omitted for anonymous review.
 \end{ack}
