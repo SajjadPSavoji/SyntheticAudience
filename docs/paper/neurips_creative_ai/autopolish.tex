@@ -60,12 +60,18 @@
 
 \title{AutoPolish: Improving Visual Aesthetics with Synthetic Audience Critique}
 
-% Anonymous for double-blind submission.
+% The [creativeai] option sets \@anonymousfalse, so this block is typeset in the
+% submission build as well (the Creative AI track is not double-blind).
 \author{%
-  Anonymous Author(s)\\
-  Affiliation\\
-  Address\\
-  \texttt{email}\\
+  Amin Fadaeinejad\textsuperscript{*}\\
+  Independent Research\\
+  \texttt{aminfadaeinejad.edu@gmail.com}\\
+  {\normalfont\small\textsuperscript{*}Equal contribution}\\
+  \And
+  Sajjad Pakdamansavoji\textsuperscript{*,\dag}\\
+  Independent Research\\
+  \texttt{sj.pakdaman.edu@gmail.com}\\
+  {\normalfont\small\textsuperscript{\dag}Corresponding author}\\
 }
 
 
@@ -180,7 +186,6 @@ In short, our contributions are:
   \end{tikzpicture}
   \caption{\textbf{Overview of the AutoPolish pipeline.} \textbf{(Top)} A frozen Qwen2-VL-7B is conditioned on $N$ persona cards, each describing one viewer in plain text, to build a synthetic audience. Given an image, the aesthetic critique of every persona in that audience is aggregated and returned as a collective reaction. \textbf{(Bottom)} Given the current best image and the audience's collective critique, Qwen2-VL-7B generates one editing instruction that resolves the critique. The instruction is fed to FLUX.1-Kontext, which produces a modified version of the image. A held-out aesthetic judge then examines the new image with a LAION aesthetic predictor and DINOv2, and decides whether the auto-research loop should roll back to the previous image or accept the new one.}
   \label{fig:overview}
-  \vspace{-0.5cm}
 \end{figure}
 
 
@@ -230,7 +235,6 @@ Before asking how accurate a synthetic audience is, we should ask how accurate a
   \includegraphics[width=\linewidth]{figs/pf_audience.png}
   \caption{\textbf{The synthetic audience is faithful to the real crowd reaction.} \textbf{(left)} Calibration roughly halves group error and pushes the audience below the population-mean prior everywhere. \textbf{(middle)} The audience recovers real differences between viewer groups: the gaps it predicts between two groups on the same image track the gaps in the real ratings (bootstrap 95\% CIs). \textbf{(right)} On AI-generated pairs, agreement with the crowd rises monotonically with the audience size and overtakes the majority prior.}
   \label{fig:audience}
-  \vspace{-0.5cm}
 \end{figure}
 
 \subsection{AutoPolish: a synthetic audience can steer image editing}
@@ -264,7 +268,6 @@ What sets the audience critic apart is what it says. It raises about three times
   \includegraphics[width=\linewidth]{figs/pf_autopolish.png}
   \caption{\textbf{AutoPolish is fast and identity-preserving.} \textbf{(left)} How the score of the best image so far rises with each round, averaged over all images (shaded band: 95\% CI). Most of the gain arrives in the first three or four rounds. \textbf{(right)} Each dot showing how much the final image improved, against how much it still resembles the original. Almost every image sits far to the right of the similarity floor we impose.}
   \label{fig:c4quant}
-  \vspace{-0.5cm}
 \end{figure}
 
 \begin{figure}[htb]
@@ -275,7 +278,6 @@ What sets the audience critic apart is what it says. It raises about three times
 \end{figure}
 \begin{figure}[htb]
   \centering
-  \vspace{-0.5cm}
   \includegraphics[width=\linewidth]{figs/pf_progression.png}
   \caption{\textbf{The loop over time.} The committed best-so-far image after refinement steps 0-10 for the \textsc{autopolish} critic, with the held-out aesthetic score above each cell. The audience's complaints accumulate across steps, so the edits arrive as visible increments rather than one jump, and the score rises monotonically by construction.}
   \label{fig:c4prog}
