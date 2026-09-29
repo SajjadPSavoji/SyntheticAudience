@@ -1,0 +1,13 @@
+*.aux
+*.log
+*.out
+*.fls
+*.fdb_latexmk
+*.bbl
+*.blg
+*.synctex.gz
+*.brf
+
+# Built PDFs (~6 MB main, ~27 MB with supplement) -- rebuild with latexmk.
+# Delete this line if you want the compiled PDF tracked, as neurips_creative_ai does.
+*.pdf
