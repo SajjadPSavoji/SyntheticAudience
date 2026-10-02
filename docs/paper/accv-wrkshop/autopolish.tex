@@ -3,9 +3,9 @@
 % =====================================================================
 %  ACCV 2026 / CV4DC workshop submission (Springer LNCS style).
 %  Ported from the NeurIPS Creative AI submission; the body text,
-%  figures and supplementary material are unchanged.
+%  figures and appendix are unchanged.
 %
-%  Build:  latexmk -pdf autopolish.tex        (paper + supplement)
+%  Build:  latexmk -pdf autopolish.tex        (paper + appendix)
 %          latexmk -pdf autopolish_main.tex   (main paper only)
 % =====================================================================
 
@@ -54,10 +54,10 @@
 % instead.  Kept as an alias so any stray \citep still compiles.
 \providecommand{\citep}{\cite}
 
-% Boxes for prompts / persona reactions / edit instructions (supplement).
+% Boxes for prompts / persona reactions / edit instructions (appendix).
 \newtcolorbox{promptbox}[1]{colback=black!5, colframe=black!80, coltitle=white,
   colbacktitle=black!80, fonttitle=\bfseries\small, title={#1}, boxrule=0.6pt, arc=2pt,
-  left=5pt, right=5pt, top=3pt, bottom=3pt, breakable}
+  left=5pt, right=5pt, top=3pt, bottom=3pt}
 \newtcolorbox{personabox}[1]{colback=black!4, colframe=black!45, coltitle=black,
   colbacktitle=black!12, fonttitle=\bfseries\footnotesize, title={#1}, boxrule=0.5pt, arc=2pt,
   left=5pt, right=5pt, top=2pt, bottom=2pt}
@@ -84,6 +84,18 @@
 % held-out judge: DINOv2 (Meta) identity check
 \newcommand{\dinomark}{\raisebox{-0.45ex}{\includegraphics[height=5pt]{figs/dinov2_logo.png}}}
 
+% Float packing. The defaults reserve 20%% of every page for text and refuse a
+% page that is more than 70%% float, which with this paper's figure load forces
+% whole float-only pages and leaves gaps. These let a page be mostly float as
+% long as it still carries text, so figures sit beside the prose instead.
+\renewcommand{\topfraction}{0.92}
+\renewcommand{\bottomfraction}{0.70}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.88}
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{5}
+
 \begin{document}
 
 \title{AutoPolish: Improving Visual Aesthetics with Synthetic Audience Critique}
@@ -104,9 +116,9 @@ Sajjad Pakdamansavoji\inst{1}$^{\star}$\thanks{Corresponding author.}}
 \maketitle
 
 \begin{abstract}
-Aesthetic judgment is plural. The same image can move one viewer and leave another cold, and both reactions are right, as they belong to different people. So the correct answer to ``how good is this image?'' is not one number but the spread of reactions an image draws from a crowd. We ask whether an off-the-shelf vision-language model (VLM) can imitate that spread well enough to guide creative work. We describe a single viewer persona in plain text, such as their age, education, and taste in art, ask the model to react as that person would, and repeat for many viewers to build a synthetic audience and aggregate their reactions to form a simulated crowd response. Across three datasets of human-rated images we show that only 19-47\% of one person's rating is shared with other viewers, thus an individual score is mostly private taste and cannot be predicted. The crowd's average, in contrast, is steady enough that a fresh set of viewers reproduces it almost exactly with 0.96 correlation. The synthetic audience also picks up how taste differs between kinds of viewers. When it predicts that one group will like an image more than another group does, real people from those groups tend to agree, at a correlation of $0.17$, while without the viewer personas the correlation is only $0.02$. This carries over to AI-generated image pairs, where the simulated crowd can predict which of two pictures people would prefer, and its accuracy gets better as more viewer personas are added. Building on these findings, we introduce AutoPolish, an auto-research style editing loop in which the synthetic audience serves as the creative critic. It asks the simulated crowd to critique an image and turns their plural judgment into an improvement instruction for a language-conditioned image editor. The edited image is then examined by a separate aesthetic judge, which decides how successful the edit was and steers the next round of the loop. We show that AutoPolish measurably improves aesthetic scores while keeping the picture recognizably itself. We further show that the synthetic audience raises $3.1\times$ more distinct objections than a single generic critic.
+Aesthetic judgment is plural: the same image moves one viewer and leaves another cold, and both reactions are right, because they belong to different people. We ask whether a frozen vision-language model (VLM), prompted with a plain-text description of a viewer, can imitate the spread of reactions a picture draws from a crowd --- and, just as importantly, \emph{whose} reactions it gets right. Across three datasets of individually attributed human ratings we first establish a ceiling: only 19--47\% of one person's rating is shared with other viewers, so an individual score is largely private taste, while the group mean is reproduced by a fresh set of viewers at up to $r{=}0.96$. A synthetic audience of persona-conditioned VLM calls tracks that group signal, recovering between-group differences at $+0.166$ against $+0.016$ for the same model without personas, with six of eight slice tests surviving Holm correction. We then audit who this audience actually represents. The judge is well calibrated across personality, age, gender, education and expertise, with no gap above $0.05$, but is badly miscalibrated by viewer nationality ($0.50$) and region ($0.23$) --- the largest effect we measure, and one that any deployment of VLM aesthetic scoring inherits, including the corpus filtering that trains the next generation of generative models. Finally, the audience is useful as well as measurable. AutoPolish, an editing loop that uses the simulated crowd as its critic and a held-out judge from a different model family as its referee, raises held-out aesthetic scores while keeping images recognizably themselves, and surfaces $3.1\times$ more distinct objections than a single generic critic.
 
-\keywords{Image aesthetics \and Synthetic audience \and Vision-language models \and Persona simulation \and Image editing}
+\keywords{Image aesthetics \and Subjective quality \and Cultural bias \and Synthetic audience \and Vision-language models \and Persona simulation}
 \end{abstract}
 
 
@@ -123,7 +135,9 @@ In short, our contributions are:
 \begin{itemize}[leftmargin=1.4em, itemsep=2pt, topsep=2pt, parsep=0pt]
 \item We show that aesthetic taste is plural: as little as 19\% of a rating is shared between individuals, while a group's average is reproduced by a fresh set of viewers at up to $0.96$ correlation.
 
-\item We show that a role-played synthetic audience is a usable proxy for a real crowd. It reproduces the differences in taste between viewer groups at a correlation $9\times$ that of a naive VLM.
+\item We show that a role-played synthetic audience is a usable proxy for a real crowd. It reproduces the differences in taste between viewer groups at a correlation $9\times$ that of a naive VLM, with six of eight slice tests surviving multiple-comparison correction, and it is steered by the persona in its language even where the rating scale is too coarse to show it.
+
+\item We audit \emph{whose} taste the judge encodes, and find it even-handed across personality, age, gender, education and expertise (gaps $\leq 0.05$) but badly miscalibrated by viewer nationality ($0.50$) and region ($0.23$) --- a bias that propagates from evaluation into corpus filtering, and the largest effect in the paper.
 
 \item We show that adding the synthetic audience as the critic in an auto-research style editing loop draws $3\times$ more practical guidance than a generic critic and measurably improves aesthetic scores.
 \end{itemize}
@@ -240,26 +254,142 @@ Averaging over the panel is not enough on its own, because the judge's error is 
 
 \section{Results}
 
-\subsection{The ceiling: the group is learnable, the individual is not}
+\subsection{Aesthetic taste is reproducible for groups not individuals}
 \label{sec:ceiling}
 
 Before asking how accurate a synthetic audience is, we should ask how accurate anything could be. One person's rating is mostly personal: only 19-47\% of it is shared with the other people who rated the same image, and the rest is theirs alone. A group average is a far steadier target; ask a second group of the same size and the two averages agree closely (0.84-0.96 across our datasets). Knowing who the rater is barely helps. Their listed attributes account for only 1-4\% of their individual ratings, and a baseline that learns each person's taste from their own past ratings gains almost nothing over ignoring them. This sets the bar for everything that follows: a synthetic audience should be judged on groups, and a method that claimed to predict one person's taste accurately would be suspicious.
 
-\subsection{The synthetic audience is a faithful predictor of crowd reactions}
-\label{sec:audience}
+\begin{table}[t]
+  \caption{The ceiling. A single rating shares only a fraction of its variance with other raters, the group mean is highly reliable, and persona attributes explain only 1-4\% of individual taste, so the individual is near-noise and the group is the right target.}
+  \label{tab:ceiling}
+  \centering
+  \small
+  \begin{tabular}{lcccc}
+    \toprule
+    Dataset & ICC(1), one rating & ICC(k), group mean & between-image var. & persona-$\Delta R^2$ \\
+    \midrule
+    PARA  & 0.470 & \textbf{0.958} & 0.470 & 2.0\% \\
+    EVA   & 0.223 & \textbf{0.906} & 0.223 & 0.9\% \\
+    LAPIS & 0.188 & \textbf{0.839} & 0.188 & 4.0\% \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+Table~\ref{tab:ceiling} makes the asymmetry explicit. ICC(1), the share of a single rating that is shared with other raters, never exceeds $0.47$ and falls to $0.19$ on paintings; ICC($k$), the reliability of the group mean over the same raters, reaches $0.84$--$0.96$. The gap between those two columns is the entire argument of this paper: the same data that makes one person unpredictable makes the crowd highly predictable. The last column closes the door on the obvious objection. If individuals were merely unmodelled rather than unmodellable, their listed attributes would explain them; instead persona attributes add only $1$--$4\%$ of individual $R^2$. We therefore target the group throughout, and treat any claim of accurate individual prediction --- our own included --- as a warning sign rather than a result.
 
-\subsubsection{The persona changes what the judge says.} Giving the judge a persona moves its answers, and it moves them in the direction the real ratings go. On the two datasets that describe their raters in detail, the scores shift the right way ($r{=}0.37$ on PARA, $0.39$ on LAPIS). The written comments shift even more: from the text alone we can tell what kind of viewer it was written for, well above chance on all three datasets, and the judge writes four times as many distinct comments as it does with no persona at all. On EVA this shows up only in the text, because the coarse integer score hides it. One correction is needed before any of this is usable. The judge rates almost everything near the middle of the scale, so we calibrate it once; this roughly halves the error of the audience's average and puts it below simply guessing the average rating on every dataset (Figure~\ref{fig:audience}, left).
-
-\subsubsection{The audience reproduces real differences between groups.} Our main result is that the audience recovers not just the average opinion but the way opinion splits. On paintings, the gaps we predict between two groups of viewers looking at the same image line up with the gaps in the real ratings ($+0.166$, 95\% CI $[0.150, 0.181]$), while the same judge without personas sits at essentially zero ($+0.016$; Figure~\ref{fig:audience}, middle). It holds for each way of dividing the viewers on its own: by nationality ($+0.068$), by interest in art ($+0.088$), and by age ($+0.102$). On the photograph datasets the effect is weak but real on PARA ($+0.044$) and absent on EVA ($-0.084$). That ordering, LAPIS $>$ PARA $>$ EVA, is exactly the order of how much each dataset tells us about its raters.
-
-\subsubsection{The same mechanism works on AI-generated images.} We repeat the test on 23{,}445 crowd votes over 898 pairs of generated images, asking the judge to answer as a voter from a given country and pick the better image of the two. A single simulated voter is close to a coin flip (0.532 correct). An audience of twenty agrees with the crowd 65.7\% of the time, above the 60.0\% reached by always choosing the more popular image, and agreement climbs steadily as the audience grows (Figure~\ref{fig:audience}, right). This is the clearest view of why collective reaction works: each vote leans the right way only slightly, and averaging enough of them turns a slight lean into a reliable answer.
+\subsection{The persona steers the judge in language more than in score}
+\label{sec:persona}
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=\linewidth]{figs/pf_audience.png}
-  \caption{\textbf{The synthetic audience is faithful to the real crowd reaction.} \textbf{(left)} Calibration roughly halves group error and pushes the audience below the population-mean prior everywhere. \textbf{(middle)} The audience recovers real differences between viewer groups: the gaps it predicts between two groups on the same image track the gaps in the real ratings (bootstrap 95\% CIs). \textbf{(right)} On AI-generated pairs, agreement with the crowd rises monotonically with the audience size and overtakes the majority prior.}
-  \label{fig:audience}
+  \includegraphics[width=\linewidth]{figs/pf_persona.png}
+  \caption{\textbf{The persona reaches the judge, and reaches its language hardest.} \textbf{(left)} One out-of-fold isotonic calibration roughly halves group error and pushes the audience below the population-mean prior on every dataset. \textbf{(middle)} A probe recovers a rater's attribute from the generated rationale alone, far above chance under the persona judge and at chance under the persona-blind control. \textbf{(right)} The persona judge writes several times as many distinct rationales. EVA is the decisive case: no score-level effect, but both text-level effects are present.}
+  \label{fig:persona}
 \end{figure}
+
+\subsubsection{The persona changes what the judge says.} Giving the judge a persona moves its answers, and it moves them in the direction the real ratings go. On the two datasets that describe their raters in detail, the scores shift the right way ($r{=}0.37$ on PARA, $0.39$ on LAPIS). The written comments shift even more: from the text alone we can tell what kind of viewer it was written for, well above chance on all three datasets, and the judge writes four times as many distinct comments as it does with no persona at all. On EVA this shows up only in the text, because the coarse integer score hides it. One correction is needed before any of this is usable. The judge rates almost everything near the middle of the scale, so we calibrate it once; this roughly halves the error of the audience's average and puts it below simply guessing the average rating on every dataset (Figure~\ref{fig:persona}, left).
+
+\subsubsection{The persona is computed even when the score cannot express it.} Score-level steerability understates the persona's effect, because a coarse integer scale has no room to register a small shift in taste. The free-text rationales do. We train a held-out probe to recover a rater's attribute from the judge's generated rationale alone, with the score discarded. Under the persona judge the probe performs well above chance on all three datasets; run against the persona-blind control it sits at chance (Figure~\ref{fig:persona}, middle), and the persona judge produces several times more distinct rationales (right). The decisive case is EVA, where the score-level effect is absent: the text-level effect is still there, so the persona is being computed and expressed in language even where the rating scale hides it. This matters for the method and not only for the analysis, because what AutoPolish consumes downstream is the critique text, not the number.
+
+\subsection{The synthetic audience reproduces inter-group opinion splits}
+\label{sec:audience}
+
+\begin{figure}[t]
+  \centering
+  \begin{minipage}[t]{0.52\linewidth}
+    \vspace{0pt}
+    \centering
+    \captionof{table}{Holm-corrected slice tests ($n=8$, $\alpha=0.05$). Six of eight between-group separations survive correction, including the nationality slice that the cross-cultural analysis builds on.}
+    \label{tab:holm}
+    \vspace{2pt}
+    \scriptsize
+    \setlength{\tabcolsep}{2.2pt}
+    \begin{tabular}{llccc}
+      \toprule
+      Dataset & slice & sep.\ $r$ & Holm $p$ & surv. \\
+      \midrule
+      LAPIS & age                   & $+0.102$ & $<10^{-3}$ & \checkmark \\
+      LAPIS & art interest          & $+0.088$ & $<10^{-3}$ & \checkmark \\
+      EVA   & age                   & $-0.079$ & $<10^{-3}$ & \checkmark \\
+      LAPIS & nationality           & $+0.068$ & $8\times10^{-5}$ & \checkmark \\
+      PARA  & photo.\ exp.\     & $+0.055$ & $1.1\times10^{-4}$ & \checkmark \\
+      PARA  & art exp.\             & $+0.040$ & $4.2\times10^{-3}$ & \checkmark \\
+      EVA   & photo.\ level    & $-0.018$ & $0.50$ & $\times$ \\
+      PARA  & age                   & $+0.008$ & $0.50$ & $\times$ \\
+      \bottomrule
+    \end{tabular}
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.45\linewidth}
+    \vspace{0pt}
+    \centering
+    \includegraphics[width=\linewidth]{figs/pf_separation.png}
+    \caption{\textbf{The audience recovers real differences between viewer groups.} Predicted between-group gaps track the real ones (bootstrap 95\% CIs); without personas the same judge sits at zero.}
+    \label{fig:audience}
+  \end{minipage}
+\end{figure}
+
+Our main result is that the audience recovers not just the average opinion but the way opinion splits. On paintings, the gaps we predict between two groups of viewers looking at the same image line up with the gaps in the real ratings ($+0.166$, 95\% CI $[0.150, 0.181]$), while the same judge without personas sits at essentially zero ($+0.016$; Figure~\ref{fig:audience}). It holds for each way of dividing the viewers on its own: by nationality ($+0.068$), by interest in art ($+0.088$), and by age ($+0.102$). On the photograph datasets the effect is weak but real on PARA ($+0.044$) and absent on EVA ($-0.084$). That ordering, LAPIS $>$ PARA $>$ EVA, is exactly the order of how much each dataset tells us about its raters. Because that is eight slice tests over three datasets, we correct for multiple comparisons rather than reporting the best of them: six of the eight survive Holm correction at $\alpha=0.05$, including every LAPIS slice and both PARA experience slices (Table~\ref{tab:holm}). The two that fail --- PARA age and EVA photo.\ level --- are reported as null, not dropped.
+
+\subsection{Aggregating weak persona votes recovers crowd preference on generated images}
+\label{sec:generated}
+
+We repeat the test on 23{,}445 crowd votes over 898 pairs of generated images, asking the judge to answer as a voter from a given country and pick the better image of the two. A single simulated voter is close to a coin flip (0.532 correct). An audience of twenty agrees with the crowd 65.7\% of the time, above the 60.0\% reached by always choosing the more popular image, and agreement climbs steadily as the audience grows (Figure~\ref{fig:generated}, left). This is the clearest view of why collective reaction works: each vote leans the right way only slightly, and averaging enough of them turns a slight lean into a reliable answer. Per pair, the aggregated audience's predicted preference correlates with the human crowd's observed win-rate at $r{=}+0.466$ (95\% CI $[0.415, 0.515]$; Figure~\ref{fig:generated}, middle), so this is a graded preference signal rather than a coin-flip that happens to land right. The step that licenses running a calibrator fit on real photographs over generated images is verified separately: every off-diagonal transfer of the isotonic map sits far below the raw error (Figure~\ref{fig:generated}, right), so the correction is a general scale fix and not a dataset-specific one.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figs/pf_generated.png}
+  \caption{\textbf{The audience transfers to AI-generated images.} \textbf{(left)} Agreement with the human crowd rises monotonically with the number of simulated voters and overtakes the majority prior; a single voter is close to a coin flip. \textbf{(middle)} Per pair, the aggregated panel's predicted preference tracks the crowd's observed win-rate over 898 pairs ($r{=}{+}0.466$, 95\% CI $[0.415, 0.515]$), so this is a graded signal rather than a coin flip that lands right; points are colored by how many humans voted on the pair. \textbf{(right)} The isotonic calibrator transfers across datasets: every off-diagonal cell (fit on one dataset, evaluated on another) sits far below the raw uncalibrated error at the right, so the correction is a general scale fix and not a dataset-specific one.}
+  \label{fig:generated}
+\end{figure}
+
+\subsection{Who the audience speaks for: calibration is not equal across viewers}
+\label{sec:fairness}
+
+A synthetic audience is only as trustworthy as its coverage. If the judge is systematically kinder toward viewers described one way than another, every aggregate built on top of it inherits that tilt, and inherits it invisibly, because the aggregate reports a single number and says nothing about who it over- or under-serves. We therefore audit the judge directly, measuring for each persona attribute its \emph{calibration gap}: the spread of the judge's bias across the levels of that attribute, after the same out-of-fold calibration used everywhere else (Figure~\ref{fig:bias}).
+
+The result splits cleanly in two. Across personality, age, gender, education and both expertise axes the judge is even-handed, with no gap exceeding $0.05$ --- small enough that a practitioner could reasonably ignore it. By viewer nationality the gap is $0.50$, an order of magnitude larger and the largest effect we measure anywhere in this paper, with region at $0.23$ and LAPIS gender at $0.17$ behind it. The model, in other words, is close to fair along every axis on which the computer-vision literature usually audits it, and badly miscalibrated along the one axis that determines whose visual culture it was trained to reward.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figs/pf_bias.png}
+  \caption{\textbf{Subgroup calibration fairness.} Calibration gap (spread of bias across a subgroup's levels) for every persona attribute, sorted. The judge is fair on most attributes but seriously biased by nationality (0.50), region (0.23), and LAPIS gender (0.17); these are flagged and controlled for rather than passed along.}
+  \label{fig:bias}
+\end{figure}
+
+We take this to be the most consequential finding here for anyone deploying VLM aesthetic scoring. A predictor of this class does not apply one standard to every picture; it applies a standard that tightens or loosens with where the viewer it is imagining comes from. That would matter on its own, but it compounds: web-scale image corpora are filtered with exactly this family of aesthetic predictor \cite{schuhmann2022}, so a nationality-dependent scale does not stay inside the evaluation. It propagates into which images survive filtering, and therefore into what the next generation of generative models is trained to consider beautiful. Aesthetic quality is the point in the pipeline where a cultural prior is easiest to mistake for a technical measurement.
+
+Two consequences shape how we report the rest. First, every between-group result in Section~\ref{sec:audience} is stated against a persona-blind control, which nets this offset out instead of passing it along as though it were signal. Second, we decline to claim cross-country differentiation as a positive result: our own between-country test on generated images is null, and the bias measured here is part of why we think a powered re-run needs a persona-blind control built in from the start rather than added afterwards.
+
+\subsection{Robustness}
+\label{sec:robust}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figs/pf_breadth_category.png}
+  \caption{\textbf{Where the group prediction holds, and where it strains.} \textbf{(left)} Calibrated panel group error against the population-mean prior for all 16 rated axes of the three datasets; every point but one lies below the diagonal, so the panel beats the prior on the whole rated surface and not only on the headline dimension. \textbf{(right)} Calibrated group error by content category on PARA. Night scenes are markedly harder than the rest, a content-difficulty ordering that is consistent across raters.}
+  \label{fig:breadth}
+\end{figure}
+
+Four checks address the objections most likely to be raised against a prompted-rating pipeline. \textbf{Decoding.} Re-running everything at temperature $0.7$ leaves both the between-group separation and the steerability essentially unchanged (Table~\ref{tab:temp}), so the headline is not an artifact of greedy decoding. The same table explains the one curve that does not move: on PARA and EVA roughly half of all panels are degenerate, every member returning the same score, which is why the panel-size curve is flat there and not flat on LAPIS or on generated images. \textbf{Breadth.} The calibrated group beats the population-mean prior on 15 of the 16 rated axes across the three datasets (Figure~\ref{fig:breadth}, left), so the group signal is not an artifact of the one headline dimension. \textbf{Content.} Error is not uniform across subject matter: night scenes are by far the hardest category and animals, buildings and still life the easiest (Figure~\ref{fig:breadth}, right). The spread is a content-difficulty effect rather than a persona or leakage artifact, and it is consistent across raters. \textbf{Leakage.} Artist fame correlates with error at only $+0.03$, the JSON parse rate is $\approx$100\%, and the pipeline is zero-shot with no AVA exemplars, so the EVA-in-AVA overlap opens no leakage path.
+
+\begin{table}[t]
+  \caption{Temperature robustness. Greedy (t$=$0) versus sampled (t$=$0.7) decoding. The separation and steerability barely move and the N-curve stays flat under both, so the headline is not a decoding artifact; the large degenerate-panel fraction on PARA/EVA explains the flat N-curve.}
+  \label{tab:temp}
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{2.2pt}
+  \begin{tabular}{llcccc}
+    \toprule
+    Dataset & decoding & \shortstack{degenerate\\panels} & \shortstack{N-curve drop\\($N{=}1{\to}20$)} & \shortstack{separation\\(95\% CI)} & \shortstack{steer-\\ability} \\[2pt]
+    \midrule
+    PARA  & t$=$0    & 0.48 & 0.003 & $+0.044\ [0.025, 0.064]$ & $+0.37$ \\
+    PARA  & t$=$0.7  & 0.42 & 0.004 & $+0.040\ [0.027, 0.055]$ & $+0.39$ \\
+    EVA   & t$=$0    & 0.51 & 0.003 & $-0.085\ [-0.103, -0.066]$ & $-0.24$ \\
+    EVA   & t$=$0.7  & 0.53 & 0.003 & $-0.080\ [-0.099, -0.061]$ & $-0.27$ \\
+    LAPIS & t$=$0    & 0.04 & 0.011 & $+0.166\ [0.149, 0.181]$ & $+0.39$ \\
+    LAPIS & t$=$0.7  & 0.03 & 0.006 & $+0.172\ [0.156, 0.189]$ & $+0.41$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \subsection{AutoPolish: a synthetic audience can steer image editing}
 \label{sec:c4}
@@ -296,13 +426,13 @@ What sets the audience critic apart is what it says. It raises about three times
 
 \begin{figure}[htb]
   \centering
-  \includegraphics[width=\linewidth]{figs/pf_qualitative.png}
-  \caption{\textbf{What the audience asks for.} Source and each condition's committed best edit, with held-out scores, for the images the audience critic helped most. \textsc{autopolish} (bold) proposes semantically meaningful changes, such as plants and artwork in a bare office or light in a dark sunset, that \textsc{static} and \textsc{blind} do not.}
+  \includegraphics[width=1.0\linewidth]{figs/pf_qualitative3.png}
+  \caption{\textbf{What the audience asks for.} Source and each condition's committed best edit, with held-out scores, for the images the audience critic helped most. \textsc{autopolish} (bold) proposes semantically meaningful changes, such as plants and artwork in a bare office, light in a dark sunset, and a player behind a basketball, that \textsc{static} and \textsc{blind} do not.}
   \label{fig:c4qual}
 \end{figure}
 \begin{figure}[htb]
   \centering
-  \includegraphics[width=\linewidth]{figs/pf_progression.png}
+  \includegraphics[width=1.0\linewidth]{figs/pf_progression3.png}
   \caption{\textbf{The loop over time.} The committed best-so-far image after refinement steps 0-10 for the \textsc{autopolish} critic, with the held-out aesthetic score above each cell. The audience's complaints accumulate across steps, so the edits arrive as visible increments rather than one jump, and the score rises monotonically by construction.}
   \label{fig:c4prog}
 \end{figure}
@@ -583,14 +713,14 @@ Experimental study of inequality and unpredictability in an artificial cultural 
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% ------------------------ Supplementary Material ------------------------
+% ------------------------------ Appendix ------------------------------
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Skipped when built through autopolish_main.tex (which defines \mainonly).
 \ifdefined\mainonly\else
 \newpage
 \begin{center}
   \rule{\textwidth}{4pt}\\[0.16in]
-  {\bfseries\fontsize{14}{17}\selectfont Supplementary Material\\[5pt]}
+  {\bfseries\fontsize{14}{17}\selectfont Appendix\\[5pt]}
   {\bfseries\fontsize{17}{21}\selectfont AutoPolish: Improving Visual Aesthetics\\ with Synthetic Audience Critique\\[0.14in]}
   \rule{\textwidth}{1pt}
 \end{center}
@@ -604,7 +734,7 @@ Experimental study of inequality and unpredictability in an artificial cultural 
 \setcounter{table}{0}
 \renewcommand{\thetable}{S\arabic{table}}
 
-This supplement gives the dataset details, the per-experiment figures behind the composite panels of the main paper, additional analyses and ablations, the limitations and honest negatives in full (Section~\ref{sec:limits}) with the future directions they point to (Section~\ref{sup:future}), and finally the exact prompts with two worked examples of the AutoPolish loop. All figures share the palette used in the main text, and every number carries the same 1000-sample bootstrap, clustered by rater and image.
+This appendix gives the dataset details, the per-experiment figures behind the composite panels of the main paper, additional analyses and ablations, the future directions this work points to (Section~\ref{sup:future}), and finally the exact prompts with two worked examples of the AutoPolish loop. All figures share the palette used in the main text, and every number carries the same 1000-sample bootstrap, clustered by rater and image.
 
 \section{Background and related work in full}
 \label{sup:related}
@@ -630,7 +760,7 @@ Our contribution sits at the intersection of these four lines. From personalized
 \section{Datasets}
 Table~\ref{tab:data} gives the four corpora in full. The ordering that matters is persona richness, which decreases from PARA and LAPIS to EVA and which turns out to be the single best predictor of where persona-dependent claims hold.
 
-\begin{table}[h]
+\begin{table}[tbp]
   \caption{Datasets. Persona richness decreases from PARA/LAPIS to EVA, which proves to be the single best predictor of where the method works.}
   \label{tab:data}
   \centering
@@ -641,56 +771,27 @@ Table~\ref{tab:data} gives the four corpora in full. The ordering that matters i
     Dataset & Content & Scale used & Persona fields \\
     \midrule
     PARA     & photographs        & 4{,}000 imgs / $\sim$52k ratings & age, gender, education, art \& photo exp., Big-Five \\
-    EVA      & photographs (AVA)  & 4{,}070 imgs / 137k ratings      & age, gender, region, photographic level \\
+    EVA      & photographs (AVA)  & 4{,}070 imgs / 137k ratings      & age, gender, region, photo.\ level \\
     LAPIS    & paintings          & 4{,}000 imgs / 90k ratings       & nationality, art interest, age \\
     Rapidata & generated pairs    & 23k votes / 898 pairs / 120 ctry & per-vote country + language \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\section{The reliability ceiling}
-Table~\ref{tab:ceiling} gives the per-dataset variance decomposition behind the main paper's ceiling argument: the reliability of a single rating, the reliability of the group mean, and the share of individual taste that persona attributes can explain at all.
-
-\begin{table}[h]
-  \caption{The ceiling. A single rating shares only a fraction of its variance with other raters, the group mean is highly reliable, and persona attributes explain only 1-4\% of individual taste, so the individual is near-noise and the group is the right target.}
-  \label{tab:ceiling}
-  \centering
-  \small
-  \begin{tabular}{lcccc}
-    \toprule
-    Dataset & ICC(1), one rating & ICC(k), group mean & between-image var. & persona-$\Delta R^2$ \\
-    \midrule
-    PARA  & 0.470 & \textbf{0.958} & 0.470 & 2.0\% \\
-    EVA   & 0.223 & \textbf{0.906} & 0.223 & 0.9\% \\
-    LAPIS & 0.188 & \textbf{0.839} & 0.188 & 4.0\% \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
 \section{Calibration in full: individual, group, and prior}
-Figure~\ref{fig:cal} expands panel (a) of the main paper's audience figure to show the individual as well as the group. Out-of-fold isotonic calibration roughly halves group error and pushes the calibrated group (blue, fourth bar) below the population-mean prior (orange) on all three datasets, while the individual prediction, even after calibration, stays near-noise exactly as the ceiling analysis predicts.
+Figure~\ref{fig:cal} expands the calibration panel of Figure~\ref{fig:persona} to show the individual as well as the group. Out-of-fold isotonic calibration roughly halves group error and pushes the calibrated group (blue, fourth bar) below the population-mean prior (orange) on all three datasets, while the individual prediction, even after calibration, stays near-noise exactly as the ceiling analysis predicts.
 
-\begin{figure}[h]
+\begin{figure}[tbp]
   \centering
   \includegraphics[width=0.98\linewidth]{figs/b4_calibration.png}
   \caption{\textbf{Calibration is what makes the aggregate beat the prior.} Normalized MAE for individual (hatched) and group (solid) predictions, raw versus calibrated, with the population-mean prior for reference. The calibrated group beats the prior on all three datasets; the individual does not, and cannot.}
   \label{fig:cal}
 \end{figure}
 
-\section{Calibration transfers across datasets}
-The isotonic calibrator is fit out-of-fold on one dataset and evaluated on another (Figure~\ref{fig:xcal}). Every off-diagonal transfer sits far below the corresponding raw (uncalibrated) error, so a calibrator fit once on real images can be reused unchanged, which is exactly what licenses the ``fit once, reuse on generated images'' step behind the generated-image results.
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.66\linewidth]{figs/ax_calib_transfer.png}
-  \caption{\textbf{Calibration transfers.} Calibrated group MAE when the isotonic map is fit on one dataset (columns) and evaluated on another (rows); the diagonal is the matched case. Every entry is far below the raw, uncalibrated error (red, right), so the correction is a general scale fix rather than a dataset-specific one.}
-  \label{fig:xcal}
-\end{figure}
-
 \section{Why calibration is needed: the judge's central-tendency bias}
 The raw judge concentrates its answers on a single value far more than humans do and, on the wider-scale datasets, uses less of the range (Figure~\ref{fig:style}). This response-style bias, not random error, is what inflates raw distributional error and is what out-of-fold calibration removes.
 
-\begin{figure}[h]
+\begin{figure}[tbp]
   \centering
   \includegraphics[width=0.86\linewidth]{figs/ax_response_style.png}
   \caption{\textbf{The judge has a central-tendency bias.} Left: the frozen VLM places a much larger share of its answers on the single most common rating than humans do. Right: its rating entropy is lower on the wider-scale datasets (EVA, LAPIS). Calibration corrects this scale and central-tendency mismatch.}
@@ -700,114 +801,17 @@ The raw judge concentrates its answers on a single value far more than humans do
 \section{The persona moves the score}
 Figure~\ref{fig:steer} shows the score-level steerability behind the claim that the persona is functional: persona-induced deviation plotted against the empirical group deviation, per dataset, with marker size proportional to slice support.
 
-\begin{figure}[h]
+\begin{figure}[tbp]
   \centering
   \includegraphics[width=0.95\linewidth]{figs/b1_steerability.png}
   \caption{\textbf{The persona is functional.} Persona-induced deviation against the empirical group deviation, per dataset; marker size is slice support. On the attribute-rich datasets the persona moves the judge in the direction the data says it should ($r{=}0.37$ on PARA, $0.39$ on LAPIS); on the thin-persona EVA it does not, matching the richness ordering.}
   \label{fig:steer}
 \end{figure}
 
-\section{The persona also steers the rationale language}
-Beyond the numeric score, the persona reshapes the judge's free-text rationale (Figure~\ref{fig:rat}). A held-out probe recovers the rater's attribute from the generated rationale text well above chance for the persona judge on all three datasets, while the persona-blind control sits at chance, and the persona produces several times more distinct rationales. This is direct evidence that the persona is functional even where a coarse integer score hides it, as on EVA.
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.86\linewidth]{figs/ax_rationale.png}
-  \caption{\textbf{The persona is functional in the text.} Left: a probe recovers a rater's attribute from the generated rationale far above chance for the persona judge, but not for the persona-blind control. Right: the persona produces several times more distinct rationales. The persona is being computed even when the discrete score cannot express it.}
-  \label{fig:rat}
-\end{figure}
-
-\section{The group beats the population prior on every rated axis}
-Across all sixteen rated dimensions of the three datasets, the calibrated panel's group error is below the population-mean prior (Figure~\ref{fig:breadth}); a non-VLM collabo\-rative-fil\-tering baseline confirms from the other side that personalization buys little (warm-start gain of only $0.013$-$0.031$ MAE). Together these show the group signal is broad and real, not specific to the headline aesthetic axis.
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.56\linewidth]{figs/ax_breadth.png}
-  \caption{\textbf{The group beats the prior everywhere.} Calibrated panel group MAE against the population-mean prior for all 16 rated axes across the three datasets. Every point but one lies below the diagonal, i.e.\ the panel is at least as accurate as the prior on essentially every dimension.}
-  \label{fig:breadth}
-\end{figure}
-
-\section{Panel preference tracks the crowd on generated images}
-Beyond the panel-size curve reported in the main text, the aggregated panel's per-pair preference correlates with the human crowd's win-rate at $r{=}+0.47$ (Figure~\ref{fig:c3scatter}). The aggregate is a real preference signal on generated content, even though between-country differences, a separate claim, do not transfer.
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.52\linewidth]{figs/c3_aggregate_scatter.png}
-  \caption{\textbf{Aggregated panel preference tracks the crowd.} Predicted panel preference against observed human win-rate over 898 AI-generated image pairs, points colored by crowd-support tercile; $r{=}+0.466$ (95\% CI $[0.415, 0.515]$).}
-  \label{fig:c3scatter}
-\end{figure}
-
-\section{The headline is not a decoding artifact: temperature study}
-Re-running at temperature $0.7$ leaves the between-group separation and the steerability essentially unchanged, while the panel-size curve stays flat under both settings (Table~\ref{tab:temp}). The flat panel-size curve on real images is therefore a decoding-collapse property of the backbone (roughly half of images give a point-mass panel), not evidence against aggregation, and the headline separation result is stable across decoding.
-
-\begin{table}[h]
-  \caption{Temperature robustness. Greedy (t$=$0) versus sampled (t$=$0.7) decoding. The separation and steerability barely move and the N-curve stays flat under both, so the headline is not a decoding artifact; the large degenerate-panel fraction on PARA/EVA explains the flat N-curve.}
-  \label{tab:temp}
-  \centering
-  \footnotesize
-  \setlength{\tabcolsep}{3.5pt}
-  \begin{tabular}{llcccc}
-    \toprule
-    Dataset & decoding & \shortstack{degenerate\\panels} & \shortstack{N-curve drop\\($N{=}1{\to}20$)} & \shortstack{separation\\(95\% CI)} & \shortstack{steer-\\ability} \\[2pt]
-    \midrule
-    PARA  & t$=$0    & 0.48 & 0.003 & $+0.044\ [0.025, 0.064]$ & $+0.37$ \\
-    PARA  & t$=$0.7  & 0.42 & 0.004 & $+0.040\ [0.027, 0.055]$ & $+0.39$ \\
-    EVA   & t$=$0    & 0.51 & 0.003 & $-0.085\ [-0.103, -0.066]$ & $-0.24$ \\
-    EVA   & t$=$0.7  & 0.53 & 0.003 & $-0.080\ [-0.099, -0.061]$ & $-0.27$ \\
-    LAPIS & t$=$0    & 0.04 & 0.011 & $+0.166\ [0.149, 0.181]$ & $+0.39$ \\
-    LAPIS & t$=$0.7  & 0.03 & 0.006 & $+0.172\ [0.156, 0.189]$ & $+0.41$ \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\section{Multiple-comparison correction}
-The per-slice separations survive Holm correction across the full sweep of eight slice tests (Table~\ref{tab:holm}): six of eight are significant at $\alpha=0.05$, including every LAPIS slice and both PARA experience slices, while the two null slices (PARA age, EVA photographic level) fail as expected.
-
-\begin{table}[h]
-  \caption{Holm-corrected slice tests ($n=8$, $\alpha=0.05$). Six of eight between-group separations survive correction, including the nationality slice that the cross-cultural analysis builds on.}
-  \label{tab:holm}
-  \centering
-  \small
-  \begin{tabular}{llccc}
-    \toprule
-    Dataset & slice & separation $r$ & Holm-adjusted $p$ & survives \\
-    \midrule
-    LAPIS & age                   & $+0.102$ & $<10^{-3}$ & \checkmark \\
-    LAPIS & art interest          & $+0.088$ & $<10^{-3}$ & \checkmark \\
-    EVA   & age                   & $-0.079$ & $<10^{-3}$ & \checkmark \\
-    LAPIS & nationality           & $+0.068$ & $8\times10^{-5}$ & \checkmark \\
-    PARA  & photography exp.\     & $+0.055$ & $1.1\times10^{-4}$ & \checkmark \\
-    PARA  & art exp.\             & $+0.040$ & $4.2\times10^{-3}$ & \checkmark \\
-    EVA   & photographic level    & $-0.018$ & $0.50$ & $\times$ \\
-    PARA  & age                   & $+0.008$ & $0.50$ & $\times$ \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\section{Subgroup fairness of the judge}
-We audit the judge's calibration across viewer subgroups (Figure~\ref{fig:bias}). It is fair across personality, age, gender, education, and expertise (gaps at most $0.05$), but shows a serious systematic bias by nationality and region. This is the ethics headline of the paper and the reason the generated-image analysis carries global-preference and persona-blind controls that net the effect out.
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.72\linewidth]{figs/ax_bias.png}
-  \caption{\textbf{Subgroup calibration fairness.} Calibration gap (spread of bias across a subgroup's levels) for every persona attribute, sorted. The judge is fair on most attributes but seriously biased by nationality (0.50), region (0.23), and LAPIS gender (0.17); these are flagged and controlled for rather than passed along.}
-  \label{fig:bias}
-\end{figure}
-
-\section{Where the judge struggles: content categories}
-Error is not uniform across content (Figure~\ref{fig:cat}): night scenes are by far the hardest category, while animals, buildings, and still life are easiest. This is a difficulty pattern, not a leakage or persona artifact, and it matches human intuition about which images are hardest to judge from a single glance.
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.6\linewidth]{figs/ax_content_category.png}
-  \caption{\textbf{Difficulty by content category (PARA).} Calibrated group error per content category. Night scenes are markedly harder than the rest; the ordering is a content-difficulty effect, consistent across raters.}
-  \label{fig:cat}
-\end{figure}
-
 \section{AutoPolish dynamics: convergence and identity}
 Figure~\ref{fig:c4quant} in the main text shows how the refinement loop behaves over its ten steps and where the committed edits land relative to the identity guardrail: all conditions rise and saturate by step 3-4, the reward-only oracle traces the ceiling, and the three critic conditions overlap on this generic objective, the measurement ceiling discussed there. Figure~\ref{fig:c4head} restates the per-condition mean gain as bars with bootstrap intervals, and adds the same gain-versus-identity scatter at full size.
 
-\begin{figure}[h]
+\begin{figure}[tbp]
   \centering
   \includegraphics[width=0.98\linewidth]{figs/c4_headline.png}
   \caption{\textbf{AutoPolish gains per condition.} Left: mean final held-out aesthetic gain; every interval excludes zero. Right: each committed final image plotted by gain against DINOv2 identity similarity, with the 0.78 drift cap marked.}
@@ -815,28 +819,28 @@ Figure~\ref{fig:c4quant} in the main text shows how the refinement loop behaves 
 \end{figure}
 
 \section{Additional qualitative AutoPolish results}
-Figure~\ref{fig:c4-qual-full} shows the complete top-five grid from which the main paper's figure takes its second and third rows, and Figure~\ref{fig:c4-qual2} a further set of images restricted to cases where the society critic attains the highest held-out score. As before, the audience critic proposes semantically meaningful changes that the fixed string and the generic critic do not: adding a player behind a basketball, revealing a kitchen behind a chef, opening a bright sky behind a structure, adding a vehicle to an empty snowy courtyard, and intensifying a sunset.
+Figure~\ref{fig:c4-qual-full} shows the complete top-five grid from which the main paper's figure takes its second, third and fourth rows, and Figure~\ref{fig:c4-qual2} a further set of images restricted to cases where the society critic attains the highest held-out score. As before, the audience critic proposes semantically meaningful changes that the fixed string and the generic critic do not: adding a player behind a basketball, revealing a kitchen behind a chef, opening a bright sky behind a structure, adding a vehicle to an empty snowy courtyard, and intensifying a sunset.
 
-\begin{figure}[h]
+\begin{figure}[tbp]
   \centering
   \includegraphics[width=0.86\linewidth]{figs/c4_qualitative.png}
   \caption{\textbf{Complete top-five qualitative grid.} Source versus best edit per condition, with held-out aesthetic scores, for the five images with the largest society-minus-static gain.}
   \label{fig:c4-qual-full}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[tbp]
   \centering
-  \includegraphics[width=0.92\linewidth]{figs/ax_qualitative2.png}
+  \includegraphics[width=0.70\linewidth]{figs/ax_qualitative2.png}
   \caption{\textbf{Additional qualitative AutoPolish results.} Source versus best edit per condition, with held-out aesthetic scores, for a further set of high society-gain images. The audience critic (\textsc{society}) makes the largest, most semantically meaningful improvements and achieves the top score on every row.}
   \label{fig:c4-qual2}
 \end{figure}
 
 \section{The refinement loop over time}
-Figure~\ref{fig:c4-prog} visualizes the auto-research loop itself, at full size and for all eight images (the main text lifts two of these rows into Figure~\ref{fig:c4prog}): each row is one image, and the columns are the best-so-far result after refinement steps $0, 2, 4, 6$, and $10$. Read left to right, each row shows the image being progressively polished as the audience critic accumulates and applies its complaints, with the held-out aesthetic score rising monotonically along the way. The edits are visible and semantically coherent over time: a Milky Way emerging over a night road, a sunset road gaining light and a passing vehicle, a wildlife scene brightening into focus.
+Figure~\ref{fig:c4-prog} visualizes the auto-research loop itself, at full size and for all eight images (the main text lifts three of these rows into Figure~\ref{fig:c4prog}): each row is one image, and the columns are the best-so-far result after refinement steps $0, 2, 4, 6$, and $10$. Read left to right, each row shows the image being progressively polished as the audience critic accumulates and applies its complaints, with the held-out aesthetic score rising monotonically along the way. The edits are visible and semantically coherent over time: a Milky Way emerging over a night road, a sunset road gaining light and a passing vehicle, a wildlife scene brightening into focus.
 
-\begin{figure}[h]
+\begin{figure}[tbp]
   \centering
-  \includegraphics[width=0.92\linewidth]{figs/ax_progression.png}
+  \includegraphics[width=0.70\linewidth]{figs/ax_progression.png}
   \caption{\textbf{The AutoPolish loop over time.} For the society critic, the best-so-far image after refinement steps $0, 2, 4, 6, 10$ (columns), one image per row. The held-out aesthetic score rises monotonically across steps by construction, and the visible edits accumulate coherently rather than in a single jump.}
   \label{fig:c4-prog}
 \end{figure}
@@ -844,7 +848,7 @@ Figure~\ref{fig:c4-prog} visualizes the auto-research loop itself, at full size 
 \section{Robustness and validity checks}
 Table~\ref{tab:robust} collects the remaining sanity checks. There is no memorization signal, the group result is invariant to how duplicate ratings are handled, the judge is more accurate exactly where human raters agree, its self-reported difficulty tracks real human disagreement, and it reproduces the human inter-dimension correlation structure. Together these support that the group signal is genuine rather than an artifact of leakage or bookkeeping.
 
-\begin{table}[h]
+\begin{table}[tbp]
   \caption{Robustness and validity checks. Every diagnostic points the ``valid'' way: no memorization, invariance to duplicate handling, higher accuracy where raters agree, a valid difficulty signal, and preserved cross-dimension structure.}
   \label{tab:robust}
   \centering
@@ -869,17 +873,11 @@ Table~\ref{tab:robust} collects the remaining sanity checks. There is no memoriz
 
 
 
-\section{Limitations and honest negatives}
-\label{sec:limits}
-
-We report our negatives in full; each sharpens the claim and points to a next experiment. \textbf{(1) The panel-size curve is flat on real images.} Greedy decoding collapses the panel and temperature-0.7 did not fix it: the backbone reverts to the mode about 88\% of the time on discrete rating tasks. The mechanism is nonetheless clean on generated images and every separation is identical across temperatures, so the headline is no artifact; the fix, reading the token-level score distribution in one forward pass, is designed and parked. \textbf{(2) Cross-cultural differentiation on generated images is null,} under-powered at roughly one vote per cell and limited to a single generator pairing; a powered re-run with a persona-blind control is specified. \textbf{(3) The critic ablation is null on a generic objective,} which cannot resolve audience-specific critique quality; a group-preference evaluator is the fix. \textbf{(4) Thin personas break persona claims,} as EVA shows throughout. \textbf{(5) The judge carries a national rating bias.} A subgroup audit \cite{aesbiasbench2025} finds it fair across personality, age, gender, and expertise (gaps at most 0.04) but biased by nationality (0.50) and region (0.23), an ethics headline and a confound, which is why the generated-image analysis carries global-preference and persona-blind controls that net it out. Leakage, by contrast, is clean: artist fame correlates with error at only $+0.03$, the parse rate is $\approx$100\%, and the zero-shot pipeline uses no AVA exemplars, so the EVA-in-AVA overlap opens no leakage path. None undercuts the core claims: the ceiling, between-group recovery on paintings, aggregation transfer, and the validated AutoPolish loop.
-
-
 \section{Future directions}
 \label{sup:future}
 Three extensions follow directly from the results above. Each preserves the distinction that organizes the paper, that the group is learnable and the individual is not, and each is stated as a falsifiable test rather than an aspiration.
 
-\subsubsection{Across model families and sizes: is the audience a property of the method or of one backbone?} Every number in this paper comes from a single frozen judge, \texttt{Qwen2-VL-7B-Instruct}. That establishes the mechanism exists; it does not establish that it belongs to persona-conditioned aggregation rather than to one model's idiosyncrasies. The clean experiment holds everything else fixed (persona cards, prompts, calibration protocol, folds, seeds, bootstrap) and swaps only the judge, sweeping both \emph{families} (a second open multimodal family, and a hosted frozen model as an upper reference) and \emph{sizes} within one family, so that family and capacity are separable rather than confounded. Three predictions make the sweep falsifiable. First, the persona-richness ordering LAPIS $>$ PARA $>$ EVA should survive every backbone, because it is a property of how richly the datasets describe their viewers and not of the model reading those descriptions; a backbone that reorders it would mean our richness explanation is wrong. Second, between-group separation should rise with scale and instruction-following, since the persona has to be both attended to and expressible in the output. Third, the central-tendency bias should change in magnitude but not vanish, which would confirm that post-hoc calibration is a structural prerequisite of prompted rating rather than a patch for one model. A valuable secondary readout is whether any backbone dissolves limitation~(1) of Section~\ref{sec:limits}: the flat panel-size curve on real images comes from greedy decoding reverting to the modal score about 88\% of the time, so a backbone with a genuinely broader score distribution, or the token-level score readout we describe there, would give aggregation the spread it needs to show itself on real images as it already does on generated ones. If the ordering holds and the panel-size curves rise across families, the synthetic audience is a property of the method; if it holds only for Qwen, the honest conclusion is a backbone effect, and we would report it as one.
+\subsubsection{Across model families and sizes: is the audience a property of the method or of one backbone?} Every number in this paper comes from a single frozen judge, \texttt{Qwen2-VL-7B-Instruct}. That establishes the mechanism exists; it does not establish that it belongs to persona-conditioned aggregation rather than to one model's idiosyncrasies. The clean experiment holds everything else fixed (persona cards, prompts, calibration protocol, folds, seeds, bootstrap) and swaps only the judge, sweeping both \emph{families} (a second open multimodal family, and a hosted frozen model as an upper reference) and \emph{sizes} within one family, so that family and capacity are separable rather than confounded. Three predictions make the sweep falsifiable. First, the persona-richness ordering LAPIS $>$ PARA $>$ EVA should survive every backbone, because it is a property of how richly the datasets describe their viewers and not of the model reading those descriptions; a backbone that reorders it would mean our richness explanation is wrong. Second, between-group separation should rise with scale and instruction-following, since the persona has to be both attended to and expressible in the output. Third, the central-tendency bias should change in magnitude but not vanish, which would confirm that post-hoc calibration is a structural prerequisite of prompted rating rather than a patch for one model. A valuable secondary readout is whether any backbone dissolves the flat panel-size curve on real images: it on real images comes from greedy decoding reverting to the modal score about 88\% of the time, so a backbone with a genuinely broader score distribution, or the token-level score readout we describe there, would give aggregation the spread it needs to show itself on real images as it already does on generated ones. If the ordering holds and the panel-size curves rise across families, the synthetic audience is a property of the method; if it holds only for Qwen, the honest conclusion is a backbone effect, and we would report it as one.
 
 \subsubsection{Beyond images: audio, text, and mixed panels.} Nothing in the method is specifically visual. A modality needs only three ingredients to carry the pipeline: a corpus of stimuli rated by \emph{identifiable} annotators, so persona cards are built from real attributes and whole users can be held out cold-start; a frozen model that accepts that modality; and, for the editing loop, a held-out grader from a different model family plus an editor that can be anchored to the original artifact. For \textbf{audio}, music and sound-aesthetics corpora with per-listener metadata supply the first ingredient: the panel reacts to a clip, aggregation predicts the listener group's response, and the AutoPolish analogue distills the panel's complaints into one mixing or arrangement instruction applied to the original take, graded by a held-out audio-preference model with a similarity check standing in for the identity constraint. For \textbf{text}, stories and essays with annotator demographics play the same role, with a rewriter as the editor and a held-out preference model as the grader; here the identity constraint becomes semantic: the revision must not change what the piece says. In each case the first study to run is the ceiling analysis rather than the headline: ICC(1) against ICC($k$), and the persona-$\Delta R^2$, say before any modeling whether a group signal exists and how much of the individual is reachable at all. We expect the qualitative pattern to repeat, with individuals near noise and group means reliable, and the persona-richness dependence to bind harder in text, where a reader's background plausibly explains more of the variance than it does for a photograph. A further step is \emph{mixed panels}, where a persona reacts to an image with its caption or a video with its soundtrack; the open question is whether group agreement rises when a modality is added, or whether each added channel supplies one more thing for viewers to disagree about.
 
@@ -887,7 +885,7 @@ Three extensions follow directly from the results above. Each preserves the dist
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% ---- Prompts and worked examples (end of supplement) ----
+% ---- Prompts and worked examples (end of the appendix) ----
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{Prompts}
@@ -906,7 +904,7 @@ As this exact person, look at this image. Give it an overall aesthetic score fro
 \{"score": <integer 0-100>, "comment": "<one concrete improvement, imperative>"\}
 \end{promptbox}
 
-\subsubsection{Persona-blind control (the baseline to beat).}
+\subsubsection{Persona-blind control (the baseline to beat).} The same task with every persona cue removed.
 \begin{promptbox}{System prompt}
 \ttfamily\footnotesize
 You are an impartial, general-purpose judge of photographic aesthetics.\\[4pt]
@@ -967,7 +965,7 @@ $\bullet$~add plants or artwork to the desks to add life and personality \hfill 
 Add natural lighting and plants/artwork to the desks to enhance warmth, comfort, and personalization.
 \end{instrbox}
 
-\begin{figure}[h]
+\begin{figure}[tbp]
   \centering
   \begin{subfigure}{0.42\linewidth}\centering
     \includegraphics[width=\linewidth]{figs/ex_office_src.jpg}\caption{source (aes 5.57)}\end{subfigure}\hspace{0.04\linewidth}
@@ -977,6 +975,6 @@ Add natural lighting and plants/artwork to the desks to enhance warmth, comfort,
   \label{fig:ex-edit}
 \end{figure}
 
-\fi % end of supplementary material (see \mainonly above)
+\fi % end of the appendix (see \mainonly above)
 
 \end{document}

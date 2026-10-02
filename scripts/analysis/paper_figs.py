@@ -44,6 +44,7 @@ PAPER = os.path.join(REPO, "docs", "paper")
 # Each venue keeps its own figs/ (page limits and templates differ, so sizes are
 # re-tuned per venue); --figs points the build at a different venue directory.
 FIGS = os.path.join(PAPER, "neurips_creative_ai", "figs")
+DPI = 400   # photo grids dominate PDF size; --dpi trades size against print quality
 DSS = ["PARA", "EVA", "LAPIS"]
 C4LABELS = {"static": "static string", "blind": "blind VLM", "society": "AutoPolish",
             "reward_only": "reward-only (oracle)"}
@@ -186,9 +187,394 @@ def fig_audience() -> str:
 
     fig.tight_layout(w_pad=0.9, pad=0.25)
     p = os.path.join(FIGS, "pf_audience.png")
-    fig.savefig(p, dpi=400, bbox_inches="tight")
+    fig.savefig(p, dpi=DPI, bbox_inches="tight")
     plt.close(fig)
     return p
+
+
+# --------------------------------------------------------------------------
+# ACCV variants. That venue splits the old three-panel audience section into
+# one section per claim, so each needs a figure it can reference on its own
+# page; the composites above stay as they are for NeurIPS and WACV, which
+# share this figs/ directory and whose captions still say left/middle/right.
+# --------------------------------------------------------------------------
+def fig_persona() -> str:
+    """Persona steerability: calibration, then the two text-level effects.
+
+    The calibration panel moves here from ``pf_audience`` because the ACCV
+    draft states the calibration result in the persona section, and a figure
+    should sit in the section that cites it first.
+    """
+    cal = load("calibration")
+    rat = load("rationale")
+
+    print_size()
+    fig, (a1, a2, a3) = plt.subplots(1, 3, figsize=(5.5, 1.42))
+    x = np.arange(3)
+
+    # (left) calibration: group MAE raw -> calibrated, against the population
+    # prior. Raw bars carry the dataset hue, calibrated is gray, prior is the
+    # dashed reference line -- the same encoding as the panels that follow.
+    w = 0.34
+    raw = [cal[d]["raw"]["group_mae"] for d in DSS]
+    cald = [cal[d]["calibrated"]["group_mae"] for d in DSS]
+    prior = [cal[d]["calibrated"]["population_prior_group_mae"] for d in DSS]
+    a1.bar(x - w / 2, raw, w, color=[theme.DATASET[d] for d in DSS], zorder=3)
+    a1.bar(x + w / 2, cald, w, color=theme.NEUTRAL, zorder=3)
+    for xi, p in zip(x, prior):
+        a1.plot([xi - 0.46, xi + 0.46], [p, p], color=theme.INK, lw=1.4,
+                ls=(0, (3, 1.6)), zorder=4)
+    a1.set_xticks(x)
+    a1.set_xticklabels(DSS)
+    a1.set_ylabel("group error (MAE)")
+    a1.set_ylim(0, max(raw) * 1.45)
+    a1.grid(True, axis="y")
+    a1.set_axisbelow(True)
+    rawkey = tuple(Patch(facecolor=theme.DATASET[d]) for d in DSS)
+    a1.legend([rawkey, Patch(facecolor=theme.NEUTRAL),
+               Line2D([0], [0], color=theme.INK, lw=1.4, ls=(0, (3, 1.6)))],
+              ["raw", "calib.", "prior"],
+              handler_map={tuple: HandlerTuple(ndivide=None)},
+              loc="upper center", ncol=3, columnspacing=0.7, handlelength=1.6,
+              handletextpad=0.35, borderpad=0.1, fontsize=5.5)
+
+    # (middle) a probe recovers the rater's attribute from the rationale text
+    # alone. The persona-blind control sitting on the chance line is the whole
+    # point, so the line is drawn over the bars rather than under them.
+    w = 0.36
+    full = [rat[d]["auc_full"] for d in DSS]
+    blind = [rat[d]["auc_blind"] for d in DSS]
+    a2.bar(x - w / 2, full, w, color=[theme.DATASET[d] for d in DSS], zorder=3)
+    a2.bar(x + w / 2, blind, w, color=theme.NEUTRAL, zorder=3)
+    a2.axhline(0.5, ls=(0, (3, 1.6)), lw=1.0, color=theme.INK, zorder=4)
+    a2.set_xticks(x)
+    a2.set_xticklabels(DSS)
+    a2.set_ylabel("attribute AUC\nfrom text")
+    # headroom for the legend: the tallest bar is ~0.70
+    a2.set_ylim(0.45, 0.79)
+    a2.grid(True, axis="y")
+    a2.set_axisbelow(True)
+    key = tuple(Patch(facecolor=theme.DATASET[d]) for d in DSS)
+    a2.legend([key, Patch(facecolor=theme.NEUTRAL),
+               Line2D([0], [0], color=theme.INK, lw=1.0, ls=(0, (3, 1.6)))],
+              ["persona", "blind", "chance"],
+              handler_map={tuple: HandlerTuple(ndivide=None)},
+              loc="upper center", ncol=3, columnspacing=0.7, handlelength=1.6,
+              handletextpad=0.35, borderpad=0.1, fontsize=5.5)
+
+    # (right) how many of the rationales are distinct. Same two-bar encoding as
+    # the middle panel, so this one carries no legend of its own.
+    fd = [rat[d]["rationale_diversity_full"] for d in DSS]
+    bd = [rat[d]["rationale_diversity_blind"] for d in DSS]
+    a3.bar(x - w / 2, fd, w, color=[theme.DATASET[d] for d in DSS], zorder=3)
+    a3.bar(x + w / 2, bd, w, color=theme.NEUTRAL, zorder=3)
+    a3.set_xticks(x)
+    a3.set_xticklabels(DSS)
+    a3.set_ylabel("distinct\nrationales")
+    a3.set_ylim(0, max(fd) * 1.3)
+    a3.grid(True, axis="y")
+    a3.set_axisbelow(True)
+
+    fig.tight_layout(w_pad=0.9, pad=0.25)
+    p = os.path.join(FIGS, "pf_persona.png")
+    fig.savefig(p, dpi=DPI, bbox_inches="tight")
+    plt.close(fig)
+    return p
+
+
+
+
+def fig_separation(width: float = 2.15, height: float = 1.21) -> str:
+    """The between-group separation panel on its own.
+
+    Drawn narrow because the ACCV draft sets it beside the Holm table rather
+    than beside another panel; ``width`` is the physical inches it occupies on
+    the page, so the type size here is the type size in print.
+    """
+    c1 = load("c1_separation")
+
+    print_size()
+    fig, ax = plt.subplots(figsize=(width, height))
+    x = np.arange(3)
+    w = 0.36
+    full = [c1[d]["overall"]["full_separation"]["corr"] for d in DSS]
+    blind = [c1[d]["overall"]["blind_separation"]["corr"] for d in DSS]
+    err = np.array([[f - c1[d]["overall"]["full_separation"]["ci95"][0],
+                     c1[d]["overall"]["full_separation"]["ci95"][1] - f]
+                    for f, d in zip(full, DSS)]).T
+    ax.bar(x - w / 2, full, w, yerr=err, capsize=1.6,
+           error_kw=dict(ecolor=theme.INK, lw=0.7, capthick=0.7),
+           color=[theme.DATASET[d] for d in DSS], zorder=3)
+    ax.bar(x + w / 2, blind, w, color=theme.NEUTRAL, zorder=3)
+    ax.axhline(0, color=theme.MUTED, lw=0.6)
+    ax.set_xticks(x)
+    ax.set_xticklabels(DSS)
+    ax.set_ylabel("group separation $r$")
+    ax.set_ylim(-0.135, 0.345)
+    ax.grid(True, axis="y")
+    ax.set_axisbelow(True)
+    key = tuple(Patch(facecolor=theme.DATASET[d]) for d in DSS)
+    ax.legend([key, Patch(facecolor=theme.NEUTRAL)], ["persona", "no persona"],
+              handler_map={tuple: HandlerTuple(ndivide=None)}, handlelength=1.4,
+              loc="upper left", ncol=2, columnspacing=0.8,
+              labelspacing=0.2, handletextpad=0.3, borderpad=0.15, fontsize=5.5)
+
+    fig.tight_layout(pad=0.25)
+    p = os.path.join(FIGS, "pf_separation.png")
+    fig.savefig(p, dpi=DPI, bbox_inches="tight")
+    plt.close(fig)
+    return p
+
+
+
+
+def fig_generated() -> str:
+    """Everything the generated-images section shows, in one strip.
+
+    (left) the panel-size curve, (middle) per-pair panel preference against the
+    human crowd, (right) the cross-dataset calibration transfer that licenses
+    running a calibrator fit on photographs over generated images.
+    """
+    from collections import defaultdict
+    from matplotlib.colors import LinearSegmentedColormap
+    from c3_rapidata import load_votes
+
+    c3 = load("c3")
+    xfer = load("calib_transfer")
+
+    # the per-pair arrays are not in c3.json (only their summaries are), so pool
+    # the raw votes again here -- it is a dict walk, not a re-analysis
+    pool_h, pool_p = defaultdict(list), defaultdict(list)
+    for r in load_votes():
+        pool_h[r["pair_id"]].append(r["human_choice"] == 2)   # image2 = flux
+        pool_p[r["pair_id"]].append(r["pred_choice"] == 2)
+    keys = list(pool_h)
+    Hn = np.array([np.mean(pool_h[k]) for k in keys])
+    Pn = np.array([np.mean(pool_p[k]) for k in keys])
+    Nn = np.array([len(pool_h[k]) for k in keys])
+
+    print_size()
+    fig, (a1, a2, a3) = plt.subplots(
+        1, 3, figsize=(5.5, 1.62), gridspec_kw=dict(width_ratios=[1.0, 1.0, 1.15]))
+
+    # (left) panel-size curve
+    nc = c3["aggregation"]["n_curve"]
+    ns = sorted(int(k) for k in nc)
+    ys = [nc[str(n)] for n in ns]
+    maj = c3["aggregation"]["aggregate_acc_majority"]
+    a1.axhline(maj, ls="--", lw=0.9, color=theme.NEUTRAL, zorder=2)
+    a1.text(ns[-1], maj - 0.003, "majority prior", ha="right", va="top",
+            fontsize=5.5, color=theme.MUTED)
+    a1.plot(ns, ys, "-o", ms=3, color=theme.PRIMARY, zorder=3)
+    a1.annotate(f"{ys[0]:.3f}", (ns[0], ys[0]), textcoords="offset points",
+                xytext=(3, 3), fontsize=5.5, color=theme.INK)
+    a1.annotate(f"{ys[-1]:.3f}", (ns[-1], ys[-1]), textcoords="offset points",
+                xytext=(-2, 4), fontsize=5.5, color=theme.INK, ha="right")
+    a1.set_xscale("log")
+    a1.set_xticks(ns)
+    a1.set_xticklabels([str(n) for n in ns])
+    a1.minorticks_off()
+    a1.set_xlabel("panel size $N$")
+    a1.set_ylabel("agreement w/ crowd")
+    a1.set_ylim(min(min(ys), maj) - 0.016, max(ys) + 0.020)
+    a1.grid(True, axis="y")
+    a1.set_axisbelow(True)
+
+    # (middle) per-pair scatter, points colored by how many humans voted on the
+    # pair: rank terciles, so the three support groups stay balanced
+    order = np.argsort(Nn, kind="stable")
+    n = len(Nn)
+    cat = np.empty(n, dtype=int)
+    cat[order[: n // 3]] = 0
+    cat[order[n // 3: 2 * n // 3]] = 1
+    cat[order[2 * n // 3:]] = 2
+    a2.plot([0, 1], [0, 1], ls="--", c=theme.NEUTRAL, lw=0.8, zorder=1)
+    a2.scatter(Hn, Pn, s=1.6, alpha=0.45, color=np.array(theme.BINS3)[cat],
+               linewidth=0, zorder=2)
+    a2.set_xlabel("human win-rate")
+    a2.set_ylabel("panel win-rate")
+    a2.set_xlim(0, 1)
+    a2.set_ylim(0, 1)
+    a2.set_xticks([0, 0.5, 1])
+    a2.set_yticks([0, 0.5, 1])
+    a2.text(0.04, 0.93, f"$r={c3['aggregation']['pair_corr']:+.3f}$",
+            transform=a2.transAxes, fontsize=5.5, va="top", color=theme.INK)
+    # the tercile colors need a key or they are an unexplained encoding; the
+    # lower-right of this scatter is empty, so it costs nothing to put it there
+    a2.legend(handles=[Line2D([0], [0], marker="o", ls="", ms=2, color=c, label=l)
+                       for c, l in zip(theme.BINS3, ["few", "med", "many"])],
+              title="crowd votes", loc="lower right", fontsize=4.4,
+              title_fontsize=4.4, handletextpad=0.15, labelspacing=0.12,
+              borderpad=0.2, borderaxespad=0.25, framealpha=0.85)
+    a2.grid(True)
+    a2.set_axisbelow(True)
+
+    # (right) calibration transfer. The printed numbers carry the values, so the
+    # colorbar is dropped -- at this width it would cost more than it explains.
+    cal = xfer["calibrated_group_mae_[eval][fitOn]"]
+    raw = xfer["raw_group_mae"]
+    M = np.array([[cal[ev][ft] for ft in DSS] for ev in DSS])
+    cmap = LinearSegmentedColormap.from_list("go", [theme.AQUA, theme.ORANGE])
+    vmin, vmax = M.min(), M.max()
+    a3.imshow(M, cmap=cmap, vmin=vmin, vmax=vmax, aspect="auto")
+    a3.grid(False)
+    a3.set_xticks(range(3)); a3.set_xticklabels(DSS)
+    a3.set_yticks(range(3)); a3.set_yticklabels(DSS)
+    for i in range(3):
+        for j in range(3):
+            r, g, b, _ = cmap((M[i, j] - vmin) / (vmax - vmin + 1e-9))
+            a3.text(j, i, f"{M[i, j]:.3f}", ha="center", va="center", fontsize=5.2,
+                    color="white" if 0.299 * r + 0.587 * g + 0.114 * b < 0.6 else theme.INK,
+                    fontweight="bold" if i == j else "normal")
+    # the uncalibrated error, as the reference every cell has to beat
+    for i, ds in enumerate(DSS):
+        a3.text(2.62, i, f"raw {raw[ds]:.2f}", ha="left", va="center",
+                fontsize=5.0, color=theme.MUTED)
+    a3.set_xlim(-0.5, 3.6)
+    a3.set_xlabel("calibrator fit on")
+    a3.set_ylabel("evaluated on")
+
+    fig.tight_layout(w_pad=1.0, pad=0.25)
+    p = os.path.join(FIGS, "pf_generated.png")
+    fig.savefig(p, dpi=DPI, bbox_inches="tight")
+    plt.close(fig)
+    return p
+
+
+def fig_bias_wide() -> str:
+    """Subgroup calibration gaps as vertical bars across the text width.
+
+    The ``ax_bias`` version is a 21-row horizontal chart, which is nearly square
+    and costs most of a page. Rotating it trades the long label column for a row
+    of rotated ticks, so the same 21 bars fit in roughly half the height.
+    """
+    d = load("bias")
+    rows = []
+    for ds in DSS:
+        for attr, m in d[ds]["by_attribute"].items():
+            rows.append((ds, attr, m["bias_gap"]))
+    rows.sort(key=lambda r: -r[2])          # largest first, so the eye starts on it
+
+    def nice(attr: str) -> str:
+        a = attr.replace("_", " ")
+        a = a.replace("photographyExperience", "photo. exp.")
+        a = a.replace("photographic level", "photo. level")
+        a = a.replace("artExperience", "art exp.")
+        a = a.replace("big5 ", "big5-")
+        return a
+
+    labels = [f"{ds}: {nice(at)}" for ds, at, _ in rows]
+    vals = [v for _, _, v in rows]
+    FAIR, MOD, SERIOUS_C = theme.SEV3       # green, blue, orange
+
+    def col(v):
+        return SERIOUS_C if v > 0.15 else (MOD if v > 0.05 else FAIR)
+
+    print_size()
+    # the tick band is a fixed cost, so canvas height and printed height do not
+    # move together; this keeps the plotting area at the height it had upright
+    fig, ax = plt.subplots(figsize=(5.5, 1.451))
+    x = np.arange(len(labels))
+    ax.bar(x, vals, color=[col(v) for v in vals], zorder=3, width=0.72)
+    # the 0.05 line is the claim of the section: everything right of the third
+    # bar sits under it, which is easier to see as a rule than as 18 numbers
+    ax.axhline(0.05, ls=(0, (3, 1.6)), lw=0.8, color=theme.INK, zorder=4)
+    # every bar is labelled, but the sub-threshold ones are lifted to a common
+    # line just above the 0.05 rule: sitting on their own bar tops they would
+    # run into the rule and into each other
+    for xi, v in zip(x, vals):
+        over = v > 0.05
+        ax.text(xi, (v if over else 0.05) + 0.014, f"{v:.2f}",
+                ha="center", va="bottom", fontsize=5.0,
+                color=theme.INK if over else theme.MUTED)
+    ax.set_xticks(x)
+    # 45 deg rather than upright: the label band costs 0.585in instead of
+    # 0.719in, and the canvas below gives back exactly that difference
+    ax.set_xticklabels(labels, rotation=45, ha="right", rotation_mode="anchor",
+                       fontsize=4.8)
+    ax.set_xlim(-0.8, len(labels) - 0.2)
+    ax.set_ylim(0, max(vals) * 1.17)
+    ax.set_ylabel("calibration gap")
+    ax.grid(True, axis="y")
+    ax.set_axisbelow(True)
+    ax.legend(handles=[Patch(facecolor=FAIR, label="fair ($\\leq$0.05)"),
+                       Patch(facecolor=MOD, label="moderate"),
+                       Patch(facecolor=SERIOUS_C, label="serious ($>$0.15)")],
+              loc="upper right", fontsize=5.2, handlelength=1.4,
+              handletextpad=0.35, labelspacing=0.22, borderpad=0.25)
+
+    fig.tight_layout(pad=0.25)
+    p = os.path.join(FIGS, "pf_bias.png")
+    fig.savefig(p, dpi=DPI, bbox_inches="tight")
+    plt.close(fig)
+    return p
+
+
+def fig_breadth_category() -> str:
+    """Two checks on where the group prediction holds up.
+
+    (left) every rated axis against the population-mean prior, (right) error by
+    content category. Both were supplement-only; at this size they fit beside
+    the robustness prose that already asserts the first of them.
+    """
+    dims = load("dims_extended")
+    cats = load("content_category")["PARA"]["by_category"]
+
+    print_size()
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(5.5, 1.72),
+                                 gridspec_kw=dict(width_ratios=[1.0, 1.12]))
+
+    # (left) calibrated panel vs the prior, one point per rated axis. Below the
+    # diagonal = the panel beats simply guessing the population mean.
+    lim = max(max(r["pop_prior"] for r in dims),
+              max(r["group_mae_cal"] for r in dims)) * 1.12
+    a1.plot([0, lim], [0, lim], ls="--", c=theme.NEUTRAL, lw=0.8, zorder=1)
+    for ds in DSS:
+        xs = [r["pop_prior"] for r in dims if r["dataset"] == ds]
+        ys = [r["group_mae_cal"] for r in dims if r["dataset"] == ds]
+        a1.scatter(xs, ys, s=9, alpha=0.9, color=theme.DATASET[ds],
+                   edgecolor="white", linewidth=0.3, label=f"{ds} ({len(xs)})",
+                   zorder=3)
+    a1.set_xlim(0, lim); a1.set_ylim(0, lim)
+    a1.set_xlabel("population-mean prior")
+    a1.set_ylabel("calibrated panel")
+    a1.text(lim * 0.96, lim * 0.12, "below the line:\npanel wins", ha="right",
+            va="bottom", fontsize=4.8, color=theme.MUTED, style="italic")
+    a1.legend(loc="upper left", fontsize=4.8, handlelength=1.0,
+              handletextpad=0.25, labelspacing=0.18, borderpad=0.2,
+              borderaxespad=0.3)
+    a1.grid(True); a1.set_axisbelow(True)
+
+    # (right) difficulty by content category, hardest at the top
+    items = sorted(cats.items(), key=lambda kv: kv[1]["group_mae"])
+    labels = [k for k, _ in items]
+    vals = [v["group_mae"] for _, v in items]
+    EASY, MOD, HARD = theme.SEV3
+    t_easy, t_hard = 0.060, 0.075
+
+    def col(v):
+        return HARD if v >= t_hard else (MOD if v >= t_easy else EASY)
+
+    y = np.arange(len(labels))
+    a2.barh(y, vals, color=[col(v) for v in vals], zorder=3, height=0.72)
+    a2.set_yticks(y); a2.set_yticklabels(labels, fontsize=4.8)
+    for yi, v in zip(y, vals):
+        a2.text(v + 0.0012, yi, f"{v:.3f}", va="center", fontsize=4.4,
+                color=theme.INK)
+    a2.set_xlim(0, max(vals) * 1.22)
+    a2.set_xlabel("calibrated group MAE  (harder $\\rightarrow$)")
+    a2.grid(True, axis="x"); a2.set_axisbelow(True)
+
+    fig.tight_layout(w_pad=1.0, pad=0.25)
+    p = os.path.join(FIGS, "pf_breadth_category.png")
+    fig.savefig(p, dpi=DPI, bbox_inches="tight")
+    plt.close(fig)
+    return p
+
+
+
+
+
 
 
 # --------------------------------------------------------------------------
@@ -247,7 +633,7 @@ def fig_autopolish(logs_dir: str, drift_cap: float = 0.78) -> str:
 
     fig.tight_layout(w_pad=1.0, pad=0.25)
     p = os.path.join(FIGS, "pf_autopolish.png")
-    fig.savefig(p, dpi=400, bbox_inches="tight")
+    fig.savefig(p, dpi=DPI, bbox_inches="tight")
     plt.close(fig)
     return p
 
@@ -299,11 +685,15 @@ def fig_qualitative(logs_dir: str, edits_dir: str, n_show: int = 2, skip: int = 
     for iid in picks:
         with Image.open(_source_path(edits_dir, iid)) as im:
             aspects.append(im.height / im.width)
-    row_h = cell_w * max(aspects) + 0.13   # + label line
+    # Each row is sized to its OWN aspect ratio. Using max(aspects) for every
+    # row is fine while all rows are landscape, but one portrait row then
+    # stretches the whole grid and leaves a dead band under every other row.
+    row_hs = [cell_w * a + 0.13 for a in aspects]   # + label line
     # Drawn at the final printed width so the per-cell labels stay legible.
     fig, axes = plt.subplots(len(picks), len(cols),
-                             figsize=(5.5, row_h * len(picks)),
-                             gridspec_kw=dict(wspace=0.02, hspace=0.10))
+                             figsize=(5.5, sum(row_hs)),
+                             gridspec_kw=dict(wspace=0.02, hspace=0.10,
+                                              height_ratios=row_hs))
     axes = np.atleast_2d(axes)
     for r, img_id in enumerate(picks):
         src = _source_path(edits_dir, img_id)
@@ -329,7 +719,7 @@ def fig_qualitative(logs_dir: str, edits_dir: str, n_show: int = 2, skip: int = 
                          color=theme.INK)
     fig.subplots_adjust(left=0, right=1, top=0.94, bottom=0)
     p = os.path.join(FIGS, out_name)
-    fig.savefig(p, dpi=400, bbox_inches="tight")
+    fig.savefig(p, dpi=DPI, bbox_inches="tight")
     plt.close(fig)
     return p
 
@@ -368,11 +758,13 @@ def fig_progression(logs_dir: str, edits_dir: str,
     for _, _, _iid, cells in picks:
         with Image.open(cells[0][0]) as im:
             aspects.append(im.height / im.width)
-    row_h = cell_w * max(aspects) + 0.13   # + label line
+    # Each row is sized to its OWN aspect ratio -- see fig_qualitative.
+    row_hs = [cell_w * a + 0.13 for a in aspects]   # + label line
     # drawn at the printed width so the per-cell labels stay legible
     fig, axes = plt.subplots(len(picks), len(CHECKPOINTS),
-                             figsize=(5.5, row_h * len(picks)),
-                             gridspec_kw=dict(wspace=0.02, hspace=0.16))
+                             figsize=(5.5, sum(row_hs)),
+                             gridspec_kw=dict(wspace=0.02, hspace=0.16,
+                                              height_ratios=row_hs))
     axes = np.atleast_2d(axes)
     for r, (_, _, _iid, cells) in enumerate(picks):
         for c, (path, score, _) in enumerate(cells):
@@ -385,7 +777,7 @@ def fig_progression(logs_dir: str, edits_dir: str,
                          color=theme.INK)
     fig.subplots_adjust(left=0, right=1, top=0.94, bottom=0)
     p = os.path.join(FIGS, out_name)
-    fig.savefig(p, dpi=400, bbox_inches="tight")
+    fig.savefig(p, dpi=DPI, bbox_inches="tight")
     plt.close(fig)
     return p
 
@@ -394,13 +786,31 @@ if __name__ == "__main__":
     ap.add_argument("--c4-root", default=os.path.join(REPO, "data", "results", "c4_run2"))
     ap.add_argument("--n-show", type=int, default=2)
     ap.add_argument("--figs", default=FIGS, help="output figure dir (one per venue)")
+    ap.add_argument("--prog-rows", default=None,
+                    help="comma-separated row indices for the progression figure "
+                         "(default: %s)" % ",".join(str(r) for r in PROG_ROWS))
+    ap.add_argument("--dpi", type=int, default=DPI,
+                    help="raster DPI for the saved figures (default %(default)s)")
+    ap.add_argument("--suffix", default="",
+                    help="appended to the qualitative/progression filenames, so a "
+                         "variant can live beside the originals in a shared figs dir")
     args = ap.parse_args()
+    DPI = args.dpi
+    if args.prog_rows:
+        PROG_ROWS = tuple(int(x) for x in args.prog_rows.split(","))
     FIGS = args.figs
     logs = os.path.join(args.c4_root, "logs")
     edits = os.path.join(args.c4_root, "edits")
 
     os.makedirs(FIGS, exist_ok=True)
     print("wrote", fig_audience())
+    print("wrote", fig_persona())
+    print("wrote", fig_separation())
+    print("wrote", fig_generated())
+    print("wrote", fig_bias_wide())
+    print("wrote", fig_breadth_category())
     print("wrote", fig_autopolish(logs))
-    print("wrote", fig_qualitative(logs, edits, n_show=args.n_show))
-    print("wrote", fig_progression(logs, edits))
+    print("wrote", fig_qualitative(logs, edits, n_show=args.n_show,
+                                   out_name="pf_qualitative%s.png" % args.suffix))
+    print("wrote", fig_progression(logs, edits,
+                                   out_name="pf_progression%s.png" % args.suffix))
