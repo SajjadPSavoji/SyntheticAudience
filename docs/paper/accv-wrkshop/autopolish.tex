@@ -116,7 +116,7 @@ Sajjad Pakdamansavoji\inst{1}$^{\star}$\thanks{Corresponding author.}}
 \maketitle
 
 \begin{abstract}
-Editing an image with today's text-guided tools is a back-and-forth in which a person decides what should change and an AI system makes the change. Because a person must take part in every round, the process does not scale, and the result follows that one person's taste, which may not suit the people the image is meant for. We propose AutoPolish, which replaces that single opinion with a synthetic audience, many copies of a vision-language model that each react as a different viewer described by a short profile. Their combined feedback stands in for how the intended audience would respond, and an auto-research style loop turns it into edits over a fixed number of rounds, keeping each edit only when an independent scorer rates it higher. Across three datasets of photographs and paintings, we show that only 19 to 47\% of one person's rating is shared with other viewers, while the averages of two separate groups agree at a correlation of up to $0.96$, so one viewer is a poor guide to a crowd. We also show that our audience captures how viewer groups differ $10\times$ better than the same model without profiles, and picks the crowd's favorite of two AI-generated images 6 percentage points more often than a simple baseline. In editing, AutoPolish improves images as much as a single generic critic while keeping them recognizable, and proposes $3\times$ as many distinct changes.
+Editing an image with today's text-guided tools is a back-and-forth in which a person decides what should change and an AI system makes the change. Because a person must take part in every round, the process does not scale, and the result follows that one person's taste, which may not suit the people the image is meant for. We propose \textbf{AutoPolish}, which replaces that single opinion with a synthetic audience, many copies of a vision-language model that each react as a different viewer described by a short profile. Their combined feedback stands in for how the intended audience would respond, and an auto-research style loop turns it into edits over a fixed number of rounds, keeping each edit only when an independent scorer rates it higher. Across three datasets of photographs and paintings, we show that only 19 to 47\% of one person's rating is shared with other viewers, while the averages of two separate groups agree at a correlation of up to $0.96$, so one viewer is a poor guide to a crowd. We also show that our audience captures how viewer groups differ $10\times$ better than the same model without profiles, and picks the crowd's favorite of two AI-generated images 6 percentage points more often than a simple baseline. In editing, AutoPolish improves images as much as a single generic critic while keeping them recognizable, and proposes $3\times$ as many distinct changes.
 
 \keywords{Image editing \and Auto-Research \and Persona Simulation}
 \end{abstract}
@@ -124,22 +124,20 @@ Editing an image with today's text-guided tools is a back-and-forth in which a p
 
 \section{Introduction}
 
-Ask ten people to rate a photograph and you will rarely get one answer. A landscape that feels serene to one viewer feels empty to another. An edit that one person calls striking another calls garish. Editing tools usually treat this disagreement as noise and average it away \cite{murray2012ava, schuhmann2022, xu2023imagereward, kirstain2023pickapic}. But an editing signal built on a naive average ignores the plural nature of taste \cite{uma2021, plank2022} and tunes the result for an average viewer who does not exist and who resembles no one.
+For most of its history, image editing meant an operator working through software that offered a fixed set of hand-crafted operations, such as cropping, color curves and masks, so the craft lay largely in mastering the tool. Editors that follow instructions written in plain language have changed this \cite{brooks2023instructpix2pix, flux2024}, because anyone can now ask for an edit in words, and what separates one result from another is no longer skill with the software but the taste of the person giving the instructions. A typical pipeline today is therefore a back-and-forth between an operator and the model, in which the operator describes a change, looks at the result, and keeps asking for further changes until the image looks right to them. This way of working does not scale, because each operator can spend only so much time in the cycle, and it does not serve its audience well, because the final image reflects one person's taste rather than the taste of the people it is meant for.
 
-Most work on computational aesthetics reduces the quality of a picture to a single score \cite{murray2012ava, ke2023vila, wu2024qalign}, and thus the creative feedback loops spend their effort raising that one number \cite{black2024ddpo, wallace2024dpo}. We take the correct answer to ``how will this image land?'' to be the whole spread of reactions a picture draws from people. The feedback worth acting on is then where those opinions center, how widely they spread, and how they shift from one kind of viewer to another. The question this work addresses is whether an off-the-shelf vision-language model (VLM) can imitate that spread, and whether the imitation is trustworthy enough to steer a real creative decision.
+Two lines of work have tried to take the operator out of this cycle, and each falls short on one of these limits. Computational aesthetics replaces the operator's judgment with a model that scores how good an image looks \cite{murray2012ava, talebi2018nima, ke2023vila, wu2024qalign}, but nearly every such model returns a single score per image, which averages over viewers who often disagree. That disagreement reflects real differences in taste rather than noise \cite{uma2021, plank2022, yang2022para}, so a single score speaks for an average viewer who does not exist, and models of individual taste \cite{ren2017personalized, zhu2022meta} need each user's own ratings. Aesthetic quality is therefore better understood as the reaction of an audience than as a property of the image, and a critic that stands in for the operator has to predict how a group of viewers would respond. Automated pipelines remove the time limit, but they either raise a fixed score in a single training run \cite{xu2023imagereward, black2024ddpo, wallace2024dpo} or let one model critique and repair its own output \cite{madaan2023selfrefine, wu2024sld, wang2024genartist}, in which case the model that proposes an edit also judges it and can mistake its own bias for improvement \cite{xu2024selfbias}. Editing, however, is a repeated cycle of editing, judging and trying again, and an automated editor has to run that cycle itself, trying different edits and keeping only those that a separate judge finds better while the image still looks like the original.
 
-Our method is deliberately straightforward and training-free; we describe a viewer in plain text by giving their age, education, familiarity with art, personality, and nationality. We then prompt the model to role-play that person and react to an image as they would, and we repeat this for many viewers to build a synthetic audience whose collective reactions we take as a prediction of the crowd response. The synthetic audience is then plugged into an auto-research style editing loop as the critic. It looks at the current picture and passes its complaints to a language-conditioned image editor as improvement instructions. A separate aesthetic judge decides whether the applied edit was beneficial without altering the essence of the picture. The judge's decisions guide the iterations of the loop, either rolling back to the previous best image or moving forward with the proposed edit.
+We build \textbf{AutoPolish} around these two ideas. To replace the single score, we create a synthetic audience by asking one frozen vision-language model to react to an image many times, each time as a different viewer described by a short text profile that we call a persona, and we combine these reactions into a collective verdict and a list of complaints. To replace the operator's back-and-forth, we place this audience inside an auto-research style loop, in which the audience's complaints become an editing instruction, an image editor carries it out, and an independent scorer from a different model family keeps the edit only if it rates the result higher and the image still looks like the original. Our evaluations show that the audience suggests three times as many distinct edits as a single generic critic, such as adding plants and artwork to a bare office, while improving the image just as much. A single simulated viewer barely beats a coin flip at guessing which of two images people prefer, yet twenty of them together agree with people two times in three, which is why we rely on an audience rather than one voice.
 
-In short, our contributions are:
+Our contributions are as follows.
 
 \begin{itemize}[leftmargin=1.4em, itemsep=2pt, topsep=2pt, parsep=0pt]
-\item We show that aesthetic taste is plural: as little as 19\% of a rating is shared between individuals, while a group's average is reproduced by a fresh set of viewers at up to $0.96$ correlation.
+\item We simulate collective taste with a synthetic audience that captures how viewer groups differ $10\times$ better than the same model without profiles.
 
-\item We show that a role-played synthetic audience is a usable proxy for a real crowd. It reproduces the differences in taste between viewer groups at a correlation $9\times$ that of a naive VLM, with six of eight slice tests surviving multiple-comparison correction, and it is steered by the persona in its language even where the rating scale is too coarse to show it.
+\item We model the back-and-forth of editing with a custom auto-research loop that suggests $3\times$ as many distinct edits as a generic critic at equal gain.
 
-\item We audit \emph{whose} taste the judge encodes, and find it even-handed across personality, age, gender, education and expertise (gaps $\leq 0.05$) but badly miscalibrated by viewer nationality ($0.50$) and region ($0.23$) --- a bias that propagates from evaluation into corpus filtering, and the largest effect in the paper.
-
-\item We show that adding the synthetic audience as the critic in an auto-research style editing loop draws $3\times$ more practical guidance than a generic critic and measurably improves aesthetic scores.
+\item We evaluate on photographs, paintings and AI-generated images, where the audience beats a simple baseline by 6 percentage points on AI-generated pairs.
 \end{itemize}
 
 \begin{figure}[t]
@@ -236,6 +234,7 @@ In short, our contributions are:
 \subsubsection{Feedback loops for editing.} A third line of work refines outputs against feedback. Most of it uses a reward: a learned preference model \cite{xu2023imagereward, kirstain2023pickapic}, reinforcement learning \cite{fan2023dpok, black2024ddpo}, reward gradients \cite{clark2024draft, prabhudesai2023alignprop}, or preference optimization \cite{wallace2024dpo}. A parallel line replaces the number with language, letting a model criticize its own output \cite{madaan2023selfrefine, shinn2023reflexion, gou2024critic}; for images, a vision-language model finds the fault and an instruction-based editor repairs it \cite{wu2024sld, wang2024genartist, brooks2023instructpix2pix, flux2024}. Two problems recur. A reward is a single number, so disagreement between viewers is averaged away before the model sees it, and when one model both proposes an edit and scores it, the improvement it reports is its own bias \cite{xu2024selfbias}. AutoPolish avoids both: its feedback comes from a group of viewers and arrives as words rather than a score, and the model that judges the result belongs to a different family from the one that makes the edit \cite{schuhmann2022, oquab2023}.
 
 \section{Method}
+\label{sec:method}
 
 \subsubsection{Persona cards.} A persona card is a short textual description of a real annotator, generated deterministically from the attributes their dataset provides: age band, education, art and photography familiarity, Big-Five scores, and nationality. Attributes that a dataset does not provide are left out, not filled in with estimated values. A typical card reads \emph{``Viewer profile: 35 to 44, master's degree, high art familiarity, moderate photography experience, nationality: Belgium. Personality (Big-5, 1 to 5): O 4.2, C 3.1, E 2.8, A 3.9, N 2.5.''} We use the same template for the annotators we use from the Synthetic audience. Our claims are therefore limited to the attributes that the card actually contains.
 \subsubsection{The frozen LLM judge.} The judge is a pretrained vision-language model that we query but never fine-tune. Each query supplies an image, a persona card, and an instruction to answer in a fixed JSON format; the model returns a score, a short rationale, and a few auxiliary fields. We parse it as strict JSON. If parsing fails, a per-field regular expression recovers the values, so we keep the sample instead of dropping it.  The backbone is \texttt{Qwen2-VL-7B-Instruct} \cite{wang2024qwen2vl}, in bf16. The “persona-blind” control format behaves as if no prompt conditioning were involved for the VLM judgment.
@@ -447,41 +446,20 @@ This work is ultimately about \emph{agency}: who decides whether an image is goo
 
 \section{Ethics}
 
-Every dataset we use is publicly available and was collected and released by other
-groups: PARA, EVA and LAPIS for rated photographs and paintings, and Rapidata for
-votes on generated images. We collected no data of our own, and we neither recruited
-nor interacted with any annotator. The viewer attributes in our persona cards are the
-ones those datasets already publish; we add nothing about any individual and attempt
-to infer nothing that a dataset does not state.
-
-That inheritance cuts both ways. Because our method reads these records, whatever
-biases they carry can pass into our results: who was recruited, which images were
-shown, and how the rating scale was explained all shape what a prompted model
-reproduces. We measure one such effect rather than leave it for the reader to find.
-The judge is close to even-handed across personality, age, gender, education and
-expertise, but is badly miscalibrated by viewer nationality, and that gap is the
-largest effect we report anywhere in this paper.
-
-Two limits follow. A persona card describes a kind of viewer, not a person, and we
-make no claim about any individual's taste. And a system that scores images for a
-stated audience can quietly narrow whose taste counts; anyone deploying one should
-measure that gap on their own population rather than assume ours carries over.
+Every dataset we use was collected and released for research by other groups, and we
+collected no data of our own. Our persona cards hold only attributes those datasets
+already publish, and a card describes a kind of viewer rather than a person, so we
+make no claim about any individual's taste. Biases in these records can carry into
+the judge, and the largest one we measure, a miscalibration by viewer nationality, is
+something anyone deploying such a system should check on their own population.
 
 \section{Reproducibility}
 
-We will release the code, the data and the results in full and publicly, so that
-anyone can check what we report and build on it. The release covers the pipeline end
-to end: the construction of persona cards, the prompts, the judging and aggregation
-code, the editing loop, and the analysis that produces every number and figure in
-this paper. We also release the raw model outputs, so that our analysis can be
-re-run and re-examined without re-running the models themselves.
-
-Nothing in this work is trained. Every model we use is frozen and publicly
-available, which removes the usual sources of irreproducibility: there are no
-learned weights of ours to distribute and no training run to repeat. The prompts
-are reproduced verbatim in the supplementary material, along with the dataset
-details, the calibration and evaluation protocol, the random seeds, and the
-bootstrap procedure behind every confidence interval we quote.
+We will publicly release the code, prompts and raw model outputs behind every number
+and figure in this paper. Nothing is trained, every model we use is frozen and
+publicly available, and the datasets can be obtained from their original authors.
+The appendix gives the prompts verbatim along with the evaluation protocol and random
+seeds.
 
 % TODO FINAL: add acknowledgements here (omitted for double-blind review).
 
