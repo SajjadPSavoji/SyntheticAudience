@@ -116,9 +116,9 @@ Sajjad Pakdamansavoji\inst{1}$^{\star}$\thanks{Corresponding author.}}
 \maketitle
 
 \begin{abstract}
-Aesthetic judgment is plural: the same image moves one viewer and leaves another cold, and both reactions are right, because they belong to different people. We ask whether a frozen vision-language model (VLM), prompted with a plain-text description of a viewer, can imitate the spread of reactions a picture draws from a crowd --- and, just as importantly, \emph{whose} reactions it gets right. Across three datasets of individually attributed human ratings we first establish a ceiling: only 19--47\% of one person's rating is shared with other viewers, so an individual score is largely private taste, while the group mean is reproduced by a fresh set of viewers at up to $r{=}0.96$. A synthetic audience of persona-conditioned VLM calls tracks that group signal, recovering between-group differences at $+0.166$ against $+0.016$ for the same model without personas, with six of eight slice tests surviving Holm correction. We then audit who this audience actually represents. The judge is well calibrated across personality, age, gender, education and expertise, with no gap above $0.05$, but is badly miscalibrated by viewer nationality ($0.50$) and region ($0.23$) --- the largest effect we measure, and one that any deployment of VLM aesthetic scoring inherits, including the corpus filtering that trains the next generation of generative models. Finally, the audience is useful as well as measurable. AutoPolish, an editing loop that uses the simulated crowd as its critic and a held-out judge from a different model family as its referee, raises held-out aesthetic scores while keeping images recognizably themselves, and surfaces $3.1\times$ more distinct objections than a single generic critic.
+Editing an image with today's text-guided tools is a back-and-forth in which a person decides what should change and an AI system makes the change. Because a person must take part in every round, the process does not scale, and the result follows that one person's taste, which may not suit the people the image is meant for. We propose AutoPolish, which replaces that single opinion with a synthetic audience, many copies of a vision-language model that each react as a different viewer described by a short profile. Their combined feedback stands in for how the intended audience would respond, and an auto-research style loop turns it into edits over a fixed number of rounds, keeping each edit only when an independent scorer rates it higher. Across three datasets of photographs and paintings, we show that only 19 to 47\% of one person's rating is shared with other viewers, while the averages of two separate groups agree at a correlation of up to $0.96$, so one viewer is a poor guide to a crowd. We also show that our audience captures how viewer groups differ $10\times$ better than the same model without profiles, and picks the crowd's favorite of two AI-generated images 6 percentage points more often than a simple baseline. In editing, AutoPolish improves images as much as a single generic critic while keeping them recognizable, and proposes $3\times$ as many distinct changes.
 
-\keywords{Image aesthetics \and Subjective quality \and Cultural bias \and Synthetic audience \and Vision-language models \and Persona simulation}
+\keywords{Image editing \and Auto-Research \and Persona Simulation}
 \end{abstract}
 
 
@@ -398,7 +398,7 @@ We run AutoPolish on 100 photographs, 50 from PARA and 50 from EVA, with four cr
 
 What sets the audience critic apart is what it says. It raises about three times as many distinct complaints per round as a single persona-free critic (3.12 versus 1.00), and it asks for concrete changes that a fixed instruction never suggests, such as plants and artwork in a bare office (Figure~\ref{fig:c4qual}). The loop is easy to follow step by step: complaints accumulate, each round re-edits the original image rather than the previous edit, and the picture improves in visible increments (Figure~\ref{fig:c4prog}).
 
-\begin{table}[t]
+\begin{table}[tb]
   \caption{\textbf{AutoPolish results}. Every critic improves the image and every image stays recognizably itself, and AutoPolish does so while giving three times as much feedback per round as any other condition.}
   \label{tab:c4}
   \centering
@@ -424,22 +424,64 @@ What sets the audience critic apart is what it says. It raises about three times
   \label{fig:c4quant}
 \end{figure}
 
-\begin{figure}[htb]
+\begin{figure}[b!]
   \centering
-  \includegraphics[width=1.0\linewidth]{figs/pf_qualitative3.png}
+  \includegraphics[width=0.52\linewidth]{figs/pf_qualitative4.png}
   \caption{\textbf{What the audience asks for.} Source and each condition's committed best edit, with held-out scores, for the images the audience critic helped most. \textsc{autopolish} (bold) proposes semantically meaningful changes, such as plants and artwork in a bare office, light in a dark sunset, and a player behind a basketball, that \textsc{static} and \textsc{blind} do not.}
   \label{fig:c4qual}
 \end{figure}
-\begin{figure}[htb]
+\begin{figure}[t!]
   \centering
-  \includegraphics[width=1.0\linewidth]{figs/pf_progression3.png}
+  \includegraphics[width=0.62\linewidth]{figs/pf_progression4.png}
   \caption{\textbf{The loop over time.} The committed best-so-far image after refinement steps 0-10 for the \textsc{autopolish} critic, with the held-out aesthetic score above each cell. The audience's complaints accumulate across steps, so the edits arrive as visible increments rather than one jump, and the score rises monotonically by construction.}
   \label{fig:c4prog}
 \end{figure}
 
+% Break the page (not \clearpage) so the pending qualitative figures take the
+% bottom slot here and the top slot overleaf, and the conclusion follows them.
+\newpage
+
 \section{Conclusion}
 
 This work is ultimately about \emph{agency}: who decides whether an image is good, and how much of that decision a creator hands over. Our premise is that there is no single verdict to hand over, because taste is plural. What we conclude is that this plurality can be simulated: a frozen model given personas, and listened to in numbers, is faithful to how a group would respond. And a reaction that can be simulated can be consulted while the work is still being made, which is what turns an audience into a critic. What that offers a creator is not a score but a voice they can hear and disagree with: the audience speaks, and the creator decides.
+
+\section{Ethics}
+
+Every dataset we use is publicly available and was collected and released by other
+groups: PARA, EVA and LAPIS for rated photographs and paintings, and Rapidata for
+votes on generated images. We collected no data of our own, and we neither recruited
+nor interacted with any annotator. The viewer attributes in our persona cards are the
+ones those datasets already publish; we add nothing about any individual and attempt
+to infer nothing that a dataset does not state.
+
+That inheritance cuts both ways. Because our method reads these records, whatever
+biases they carry can pass into our results: who was recruited, which images were
+shown, and how the rating scale was explained all shape what a prompted model
+reproduces. We measure one such effect rather than leave it for the reader to find.
+The judge is close to even-handed across personality, age, gender, education and
+expertise, but is badly miscalibrated by viewer nationality, and that gap is the
+largest effect we report anywhere in this paper.
+
+Two limits follow. A persona card describes a kind of viewer, not a person, and we
+make no claim about any individual's taste. And a system that scores images for a
+stated audience can quietly narrow whose taste counts; anyone deploying one should
+measure that gap on their own population rather than assume ours carries over.
+
+\section{Reproducibility}
+
+We will release the code, the data and the results in full and publicly, so that
+anyone can check what we report and build on it. The release covers the pipeline end
+to end: the construction of persona cards, the prompts, the judging and aggregation
+code, the editing loop, and the analysis that produces every number and figure in
+this paper. We also release the raw model outputs, so that our analysis can be
+re-run and re-examined without re-running the models themselves.
+
+Nothing in this work is trained. Every model we use is frozen and publicly
+available, which removes the usual sources of irreproducibility: there are no
+learned weights of ours to distribute and no training run to repeat. The prompts
+are reproduced verbatim in the supplementary material, along with the dataset
+details, the calibration and evaluation protocol, the random seeds, and the
+bootstrap procedure behind every confidence interval we quote.
 
 % TODO FINAL: add acknowledgements here (omitted for double-blind review).
 
@@ -819,7 +861,7 @@ Figure~\ref{fig:c4quant} in the main text shows how the refinement loop behaves 
 \end{figure}
 
 \section{Additional qualitative AutoPolish results}
-Figure~\ref{fig:c4-qual-full} shows the complete top-five grid from which the main paper's figure takes its second, third and fourth rows, and Figure~\ref{fig:c4-qual2} a further set of images restricted to cases where the society critic attains the highest held-out score. As before, the audience critic proposes semantically meaningful changes that the fixed string and the generic critic do not: adding a player behind a basketball, revealing a kitchen behind a chef, opening a bright sky behind a structure, adding a vehicle to an empty snowy courtyard, and intensifying a sunset.
+Figure~\ref{fig:c4-qual-full} shows the complete top-five grid from which the main paper's figure takes its second through fifth rows, and Figure~\ref{fig:c4-qual2} a further set of images restricted to cases where the society critic attains the highest held-out score. As before, the audience critic proposes semantically meaningful changes that the fixed string and the generic critic do not: adding a player behind a basketball, revealing a kitchen behind a chef, opening a bright sky behind a structure, adding a vehicle to an empty snowy courtyard, and intensifying a sunset.
 
 \begin{figure}[tbp]
   \centering
@@ -836,7 +878,7 @@ Figure~\ref{fig:c4-qual-full} shows the complete top-five grid from which the ma
 \end{figure}
 
 \section{The refinement loop over time}
-Figure~\ref{fig:c4-prog} visualizes the auto-research loop itself, at full size and for all eight images (the main text lifts three of these rows into Figure~\ref{fig:c4prog}): each row is one image, and the columns are the best-so-far result after refinement steps $0, 2, 4, 6$, and $10$. Read left to right, each row shows the image being progressively polished as the audience critic accumulates and applies its complaints, with the held-out aesthetic score rising monotonically along the way. The edits are visible and semantically coherent over time: a Milky Way emerging over a night road, a sunset road gaining light and a passing vehicle, a wildlife scene brightening into focus.
+Figure~\ref{fig:c4-prog} visualizes the auto-research loop itself, at full size and for all eight images (the main text lifts four of these rows into Figure~\ref{fig:c4prog}): each row is one image, and the columns are the best-so-far result after refinement steps $0, 2, 4, 6$, and $10$. Read left to right, each row shows the image being progressively polished as the audience critic accumulates and applies its complaints, with the held-out aesthetic score rising monotonically along the way. The edits are visible and semantically coherent over time: a Milky Way emerging over a night road, a sunset road gaining light and a passing vehicle, a wildlife scene brightening into focus.
 
 \begin{figure}[tbp]
   \centering
