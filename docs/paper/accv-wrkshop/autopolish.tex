@@ -31,6 +31,7 @@
 \usepackage{graphicx}
 \usepackage{booktabs}       % professional-quality tables
 \usepackage{tabularx}       % width-constrained wrapping tables
+\usepackage{multirow}       % header cells spanning two rows
 \usepackage{amsfonts}       % blackboard math symbols
 \usepackage{nicefrac}       % compact symbols for 1/2, etc.
 \usepackage{microtype}      % microtypography
@@ -255,30 +256,42 @@ Averaging over the panel is not enough on its own, because the judge's error is 
 
 \section{Results}
 
-\subsection{Aesthetic taste is reproducible for groups not individuals}
+\subsection{Taste is better reproduced for groups than for individuals}
 \label{sec:ceiling}
 
-Before asking how accurate a synthetic audience is, we should ask how accurate anything could be. One person's rating is mostly personal: only 19-47\% of it is shared with the other people who rated the same image, and the rest is theirs alone. A group average is a far steadier target; ask a second group of the same size and the two averages agree closely (0.84-0.96 across our datasets). Knowing who the rater is barely helps. Their listed attributes account for only 1-4\% of their individual ratings, and a baseline that learns each person's taste from their own past ratings gains almost nothing over ignoring them. This sets the bar for everything that follows: a synthetic audience should be judged on groups, and a method that claimed to predict one person's taste accurately would be suspicious.
+We measure how reliable a single rating is compared with the average rating of a group, to show how predictable aesthetic taste is before any model is involved. To compute both, we split every rating into a part shared by everyone who rated the same image and a part that belongs to the individual rater, and use two forms of the intraclass correlation. The reliability of a single rating is how much of it other viewers of the same image share, and the reliability of a group average, taken over all raters of an image, about 23 to 34 people depending on the dataset, tells how closely two separate groups of that size would agree. We also fit the raters' profile attributes to the personal part of their ratings, to see how much of it a profile can explain.
 
 \begin{table}[t]
-  \caption{The ceiling. A single rating shares only a fraction of its variance with other raters, the group mean is highly reliable, and persona attributes explain only 1-4\% of individual taste, so the individual is near-noise and the group is the right target.}
+  \caption{Reliability of a single rating and of a group average, the share of each rater's personal taste that their profile explains, and the average number of raters per image across three datasets. A group average is far more reliable than one rating, and the profile explains little of personal taste.}
   \label{tab:ceiling}
   \centering
   \small
-  \begin{tabular}{lcccc}
+  \setlength{\aboverulesep}{0pt}\setlength{\belowrulesep}{0pt}
+  \renewcommand{\arraystretch}{1.05}
+  \newcolumntype{C}[1]{>{\hsize=#1\hsize\centering\arraybackslash}X}
+  \begin{tabularx}{\linewidth}{l|C{0.92}C{0.92}|C{0.96}|C{1.2}}
     \toprule
-    Dataset & ICC(1), one rating & ICC(k), group mean & between-image var. & persona-$\Delta R^2$ \\
+    \multirow{2}{*}{Dataset} & \multicolumn{2}{c|}{Reliability\rule{0pt}{2.4ex}\rule[-0.7ex]{0pt}{0pt}} & \multirow{2}{=}[-0.5ex]{\centering Taste explained\newline by profile} & \multirow{2}{=}{\centering \# Raters/image} \\
+    \cline{2-3}
+    \rule[-0.8ex]{0pt}{0pt} & single rating\rule{0pt}{2.3ex} & group average & & \\
     \midrule
-    PARA  & 0.470 & \textbf{0.958} & 0.470 & 2.0\% \\
-    EVA   & 0.223 & \textbf{0.906} & 0.223 & 0.9\% \\
-    LAPIS & 0.188 & \textbf{0.839} & 0.188 & 4.0\% \\
+    PARA~\cite{yang2022para}\rule{0pt}{2.3ex}      & 0.470 & \textbf{0.958} & 2.0\% & 26 \\
+    EVA~\cite{kang2020eva}        & 0.223 & \textbf{0.906} & 0.9\% & 34 \\
+    LAPIS~\cite{maerten2025lapis}\rule[-0.7ex]{0pt}{0pt} & 0.188 & \textbf{0.839} & 4.0\% & 23 \\
+    \midrule
+    Average\rule{0pt}{2.3ex}\rule[-0.7ex]{0pt}{0pt} & 0.293 & \textbf{0.901} & 2.3\% & 27 \\
     \bottomrule
-  \end{tabular}
+  \end{tabularx}
 \end{table}
-Table~\ref{tab:ceiling} makes the asymmetry explicit. ICC(1), the share of a single rating that is shared with other raters, never exceeds $0.47$ and falls to $0.19$ on paintings; ICC($k$), the reliability of the group mean over the same raters, reaches $0.84$--$0.96$. The gap between those two columns is the entire argument of this paper: the same data that makes one person unpredictable makes the crowd highly predictable. The last column closes the door on the obvious objection. If individuals were merely unmodelled rather than unmodellable, their listed attributes would explain them; instead persona attributes add only $1$--$4\%$ of individual $R^2$. We therefore target the group throughout, and treat any claim of accurate individual prediction --- our own included --- as a warning sign rather than a result.
+
+Table~\ref{tab:ceiling} shows a large gap between the two reliabilities. Averaged over the three datasets, a single rating reaches a reliability of only 0.29, so most of what one person says about an image is their own, while the average of a group reaches 0.90, which means a second group of viewers would give nearly the same average. The gap also varies with the kind of image, since a single rating is most reliable on the PARA photographs at 0.47, drops to 0.22 on the EVA photographs, and is lowest on the LAPIS paintings at 0.19, where a group average still holds at 0.84. Paintings therefore draw the most personal reactions, although the difference between the two photograph datasets suggests that the type of image is not the only factor. The profile attributes explain only 2.3\% of personal taste on average and at most 4\%, and learning each rater's taste from their own past ratings lowers prediction error only modestly. Together, these results suggest that the group is a more realistic target than the individual, so we evaluate the synthetic audience on groups in the rest of the paper.
 
 \subsection{The persona steers the judge in language more than in score}
 \label{sec:persona}
+
+\subsubsection{The persona changes what the judge says.} Giving the judge a persona moves its answers, and it moves them in the direction the real ratings go. On the two datasets that describe their raters in detail, the scores shift the right way ($r{=}0.37$ on PARA, $0.39$ on LAPIS). The written comments shift even more: from the text alone we can tell what kind of viewer it was written for, well above chance on all three datasets, and the judge writes four times as many distinct comments as it does with no persona at all. On EVA this shows up only in the text, because the coarse integer score hides it. One correction is needed before any of this is usable. The judge rates almost everything near the middle of the scale, so we calibrate it once; this roughly halves the error of the audience's average and puts it below simply guessing the average rating on every dataset (Figure~\ref{fig:persona}, left).
+
+\subsubsection{The persona is computed even when the score cannot express it.} Score-level steerability understates the persona's effect, because a coarse integer scale has no room to register a small shift in taste. The free-text rationales do. We train a held-out probe to recover a rater's attribute from the judge's generated rationale alone, with the score discarded. Under the persona judge the probe performs well above chance on all three datasets; run against the persona-blind control it sits at chance (Figure~\ref{fig:persona}, middle), and the persona judge produces several times more distinct rationales (right). The decisive case is EVA, where the score-level effect is absent: the text-level effect is still there, so the persona is being computed and expressed in language even where the rating scale hides it. This matters for the method and not only for the analysis, because what AutoPolish consumes downstream is the critique text, not the number.
 
 \begin{figure}[t]
   \centering
@@ -287,12 +300,10 @@ Table~\ref{tab:ceiling} makes the asymmetry explicit. ICC(1), the share of a sin
   \label{fig:persona}
 \end{figure}
 
-\subsubsection{The persona changes what the judge says.} Giving the judge a persona moves its answers, and it moves them in the direction the real ratings go. On the two datasets that describe their raters in detail, the scores shift the right way ($r{=}0.37$ on PARA, $0.39$ on LAPIS). The written comments shift even more: from the text alone we can tell what kind of viewer it was written for, well above chance on all three datasets, and the judge writes four times as many distinct comments as it does with no persona at all. On EVA this shows up only in the text, because the coarse integer score hides it. One correction is needed before any of this is usable. The judge rates almost everything near the middle of the scale, so we calibrate it once; this roughly halves the error of the audience's average and puts it below simply guessing the average rating on every dataset (Figure~\ref{fig:persona}, left).
-
-\subsubsection{The persona is computed even when the score cannot express it.} Score-level steerability understates the persona's effect, because a coarse integer scale has no room to register a small shift in taste. The free-text rationales do. We train a held-out probe to recover a rater's attribute from the judge's generated rationale alone, with the score discarded. Under the persona judge the probe performs well above chance on all three datasets; run against the persona-blind control it sits at chance (Figure~\ref{fig:persona}, middle), and the persona judge produces several times more distinct rationales (right). The decisive case is EVA, where the score-level effect is absent: the text-level effect is still there, so the persona is being computed and expressed in language even where the rating scale hides it. This matters for the method and not only for the analysis, because what AutoPolish consumes downstream is the critique text, not the number.
-
 \subsection{The synthetic audience reproduces inter-group opinion splits}
 \label{sec:audience}
+
+Our main result is that the audience recovers not just the average opinion but the way opinion splits. On paintings, the gaps we predict between two groups of viewers looking at the same image line up with the gaps in the real ratings ($+0.166$, 95\% CI $[0.150, 0.181]$), while the same judge without personas sits at essentially zero ($+0.016$; Figure~\ref{fig:audience}). It holds for each way of dividing the viewers on its own: by nationality ($+0.068$), by interest in art ($+0.088$), and by age ($+0.102$). On the photograph datasets the effect is weak but real on PARA ($+0.044$) and absent on EVA ($-0.084$). That ordering, LAPIS $>$ PARA $>$ EVA, is exactly the order of how much each dataset tells us about its raters. Because that is eight slice tests over three datasets, we correct for multiple comparisons rather than reporting the best of them: six of the eight survive Holm correction at $\alpha=0.05$, including every LAPIS slice and both PARA experience slices (Table~\ref{tab:holm}). The two that fail --- PARA age and EVA photo.\ level --- are reported as null, not dropped.
 
 \begin{figure}[t]
   \centering
@@ -327,8 +338,6 @@ Table~\ref{tab:ceiling} makes the asymmetry explicit. ICC(1), the share of a sin
     \label{fig:audience}
   \end{minipage}
 \end{figure}
-
-Our main result is that the audience recovers not just the average opinion but the way opinion splits. On paintings, the gaps we predict between two groups of viewers looking at the same image line up with the gaps in the real ratings ($+0.166$, 95\% CI $[0.150, 0.181]$), while the same judge without personas sits at essentially zero ($+0.016$; Figure~\ref{fig:audience}). It holds for each way of dividing the viewers on its own: by nationality ($+0.068$), by interest in art ($+0.088$), and by age ($+0.102$). On the photograph datasets the effect is weak but real on PARA ($+0.044$) and absent on EVA ($-0.084$). That ordering, LAPIS $>$ PARA $>$ EVA, is exactly the order of how much each dataset tells us about its raters. Because that is eight slice tests over three datasets, we correct for multiple comparisons rather than reporting the best of them: six of the eight survive Holm correction at $\alpha=0.05$, including every LAPIS slice and both PARA experience slices (Table~\ref{tab:holm}). The two that fail --- PARA age and EVA photo.\ level --- are reported as null, not dropped.
 
 \subsection{Aggregating weak persona votes recovers crowd preference on generated images}
 \label{sec:generated}
