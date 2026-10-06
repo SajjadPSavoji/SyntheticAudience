@@ -325,6 +325,29 @@ def analyze(logs_dir: str, analysis_dir: str) -> dict:
                          present, headline, auc, conv, winrates, div)
     report["_table_summary"] = "c4_summary.md"
 
+
+    # 7) paper table: what each critic does to the images it changes. Uses its own
+    # generator, so every number above is unchanged when this block is added.
+    # Images the loop never improves keep their score exactly (accept-if-better),
+    # so "gain per improved image" is the mean gain over images with gain > 0.
+    trng = np.random.default_rng(0)
+
+    def _ci(vals):
+        vals = np.asarray(vals, dtype=float)
+        draws = vals[trng.integers(0, len(vals), size=(N_BOOT, len(vals)))].mean(axis=1)
+        return [float(np.percentile(draws, 2.5)), float(np.percentile(draws, 97.5))]
+
+    table: dict = {}
+    for c in present:
+        g = np.array([finals[c][i]["gain"] for i in finals[c]])
+        sim = np.array([finals[c][i]["drift_final"] for i in finals[c]])
+        imp = g > 0
+        table[c] = {"n_images": int(len(g)),
+                    "frac_improved": float(imp.mean()),
+                    "gain_per_improved": float(g[imp].mean()), "gain_per_improved_ci": _ci(g[imp]),
+                    "edit_size": float(np.nanmean(1 - sim)), "edit_size_ci": _ci(1 - sim),
+                    "complaints_per_round": (div[c]["overall_mean"] if c in div else None)}
+    report["table"] = table
     return report
 
 

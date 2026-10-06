@@ -296,7 +296,7 @@ Table~\ref{tab:ceiling} shows a large gap between the two reliabilities. Average
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/pf_persona.png}
-  \caption{The audience's rating error and what its comments reveal about the viewer. \textbf{(left)} Error of the audience's average rating before and after calibration, against the prior. \textbf{(middle)} How well a classifier recovers a rater's attribute from the comment alone and \textbf{(right)} distinct comments per rater of an image, both with and without a persona. Error bars are 95\% bootstrap intervals. Calibration beats the prior on every dataset, and the persona makes the comments more varied and more telling of the viewer. Exact values are given in Appendix~\appref{sup:fig2}{A6}.}
+  \caption{The audience's rating error and what its comments reveal about the viewer. \textbf{(left)} Error of the audience's average rating before and after calibration, against the prior. \textbf{(middle)} How well a classifier recovers a rater's attribute from the comment alone and \textbf{(right)} distinct comments per rater of an image, both with and without a persona. Calibration beats the prior on every dataset, and the persona makes the comments more varied and more telling of the viewer. Exact values are given in Appendix~\appref{sup:fig2}{A6}.}
   \label{fig:persona}
 
   \vspace{6pt}
@@ -368,6 +368,58 @@ Figure~\ref{fig:audience} shows how well the predicted differences between group
 
 Figure~\ref{fig:generated} (left) shows that the vote of a single persona-conditioned VLM agrees with the crowd's majority on 58.8\% of pairs, just below the 60.0\% of always picking the more popular model, but agreement rises as more personas are added to the panel and reaches 65.7\% with twenty. Figure~\ref{fig:generated} (right) shows that, per pair, the share of the panel that prefers an image tracks the share of the crowd that does, with a correlation of 0.47, so the panel gives a graded preference rather than a lucky guess. Together, these results suggest that the votes of many persona-conditioned VLMs add up to a usable estimate of a population's preferences.
 
+\subsection{The synthetic audience can steer image editing}
+\label{sec:c4}
+
+We test whether the synthetic audience can be used for automated image editing as the critic in the loop of AutoPolish, improving images while keeping them recognizable. We run the loop for ten rounds on 100 photographs, 50 from PARA and 50 from EVA, and compare four critics that differ only in where the editing instruction comes from. The first two critics are blind variants, namely a fixed instruction to improve the image (static string) and a single VLM critique with no persona (blind VLM). The third is AutoPolish, which distills the complaints of ten personas into one instruction, and the fourth is the reward-only ceiling, which optimizes the independent scorer directly and serves as an upper reference rather than a fair competitor. All critics share the same request for a visible edit, so the prompt wording cannot explain their differences (see Appendix~\appref{sup:prompts}{A12}). All scores come from the independent scorer, a LAION aesthetic predictor that rates images on a scale of roughly 1 to 10. Besides the gain in score and the share of images that improve, we report the gain on the images that do improve, the edit size, which is one minus the DINOv2 similarity between the final image and the original and is capped at 0.22 by the similarity floor of 0.78 that the loop enforces, and how many distinct complaints the critic raises per round.
+
+\begin{table}[b]
+  \caption{Results of each critic over ten rounds on 100 photographs, where edit size is how much the final image differs from the original. AutoPolish gives the largest gain among the critics, the largest gain on the images it improves, and the most feedback.}
+  \label{tab:c4}
+  \centering
+  \fontsize{8}{9.5}\selectfont
+  \setlength{\aboverulesep}{0pt}\setlength{\belowrulesep}{0pt}
+  \renewcommand{\arraystretch}{1.1}
+  \setlength{\tabcolsep}{3.5pt}
+  \begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}l|cccccc@{}}
+    \toprule
+    \multirow{2}{*}{Critic} & \multirow{2}{*}{Gain $\uparrow$} & \multirow{2}{*}{95\% CI} & \multirow{2}{*}{Improved} & Gain per\rule{0pt}{2.4ex} & Edit & \multirow{2}{*}{Complaints $\uparrow$} \\
+    \rule[-0.8ex]{0pt}{0pt} & & & & improved $\uparrow$ & size & \\
+    \midrule
+    static string\rule{0pt}{2.3ex} & $+0.164$ & [0.135, 0.196] & 84\% & 0.195 & 0.032 & n/a \\
+    blind VLM            & $+0.155$ & [0.126, 0.185] & 72\% & 0.215 & 0.036 & 1.00 \\
+    \textbf{AutoPolish (ours)}\rule[-0.7ex]{0pt}{0pt} & $\mathbf{+0.170}$ & [0.136, 0.207] & 69\% & \textbf{0.247} & \textbf{0.049} & \textbf{3.12} \\
+    \midrule
+    \textit{reward-only (ceiling)}\rule{0pt}{2.3ex}\rule[-0.7ex]{0pt}{0pt} & $+0.187$ & [0.157, 0.221] & 86\% & 0.218 & 0.040 & n/a \\
+    \bottomrule
+  \end{tabular*}
+\end{table}
+
+Table~\ref{tab:c4} shows that AutoPolish gives the largest score gain of the three critics, raising the independent score by 0.170 on average, from 5.10 to 5.27, against 0.164 for the static string and 0.155 for the blind VLM. Our method improves fewer images than the static string, 69\% against 84\%, but changes the ones it improves more. The gain on those images is 0.247, higher than for any other critic and the reward-only ceiling (0.218), and its edits are the largest (0.049), while every critic stays well below the cap of 0.22. AutoPolish also raises about three distinct complaints per round, against one for the blind VLM, while the static string always repeats the same instruction.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figs/pf_autopolish_accv.png}
+  \caption{How each critic behaves over ten rounds. \textbf{(left)} Score of the best image so far at each round, averaged over the 100 photographs, with a shaded 95\% bootstrap band. \textbf{(right)} Final gain of each image against its similarity to the original, with the 0.78 floor marked. AutoPolish pulls ahead from the fourth round, and almost every image stays far above the floor.}
+  \label{fig:c4quant}
+\end{figure}
+
+Figure~\ref{fig:c4quant} (left) shows that most of the gain arrives in the first few rounds, but the difference between critics becomes more visible as the rounds go on, with AutoPolish starting slightly behind and pulling ahead of the other critics from the fourth round. Figure~\ref{fig:c4quant} (right) shows that almost every final image stays well above the similarity floor. Figure~\ref{fig:c4prog} shows how AutoPolish gradually improves images over several rounds while keeping them similar to the original. Figure~\ref{fig:c4qual} compares the critics on the same images and shows the larger edits and larger gains of AutoPolish. Together, these results suggest that the synthetic audience is a usable critic for editing, matching simpler critics in overall score while making larger and more concrete changes. More examples are given in Appendices~\appref{sup:c4qual}{A8} and~\appref{sup:c4prog}{A9}.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=\linewidth]{figs/pf_progression_accv.png}
+  \caption{How AutoPolish improves images gradually over its rounds, shown by the best image so far at selected rounds with its LAION aesthetic score above each image. The right column explains the change from the source to the last round. Each round adds the complaints gathered so far, so the images improve step by step while staying close to the original.}
+  \label{fig:c4prog}
+\end{figure}
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=\linewidth]{figs/pf_qualitative_accv.png}
+  \caption{Source images and the best edit from each critic, with the LAION aesthetic score above each image, for the images where AutoPolish helped most. The right column explains what AutoPolish changed and why it scores higher. AutoPolish makes the largest changes, such as adding a player behind a basketball, which no other critic proposes.}
+  \label{fig:c4qual}
+\end{figure}
+
 \subsection{Who the audience speaks for: calibration is not equal across viewers}
 \label{sec:fairness}
 
@@ -417,56 +469,6 @@ Four checks address the objections most likely to be raised against a prompted-r
     \bottomrule
   \end{tabular}
 \end{table}
-
-\subsection{AutoPolish: a synthetic audience can steer image editing}
-\label{sec:c4}
-
-We run AutoPolish on 100 photographs, 50 from PARA and 50 from EVA, with four critics and ten rounds each. The loop does what it is meant to do (Table~\ref{tab:c4}). Every critic improves the image, measured by a scorer that plays no part in the editing, and the audience critic lifts the average aesthetic score from 5.10 to 5.27. The edited images still look like the originals, comfortably above the similarity floor of $0.78$ we impose. Most of the improvement arrives within three or four rounds, and the condition that optimizes the scorer directly ends up only slightly ahead (Figure~\ref{fig:c4quant}).
-
-What sets the audience critic apart is what it says. It raises about three times as many distinct complaints per round as a single persona-free critic (3.12 versus 1.00), and it asks for concrete changes that a fixed instruction never suggests, such as plants and artwork in a bare office (Figure~\ref{fig:c4qual}). The loop is easy to follow step by step: complaints accumulate, each round re-edits the original image rather than the previous edit, and the picture improves in visible increments (Figure~\ref{fig:c4prog}).
-
-\begin{table}[tb]
-  \caption{\textbf{AutoPolish results}. Every critic improves the image and every image stays recognizably itself, and AutoPolish does so while giving three times as much feedback per round as any other condition.}
-  \label{tab:c4}
-  \centering
-  \small
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{lcccc}
-    \toprule
-    Critic & \shortstack{held-out gain\\(95\% CI)} & \shortstack{identity\\(final)} & \shortstack{\%\\improved} & \shortstack{complaints\\per step} \\[2pt]
-    \midrule
-    \textsc{static}      & $+0.164\ [0.135, 0.196]$ & 0.968 & 84\% & 1.00 \\
-    \textsc{blind}       & $+0.155\ [0.126, 0.185]$ & 0.964 & 72\% & 1.00 \\
-    \textsc{autopolish (ours)} & $+0.170\ [0.136, 0.207]$ & 0.951 & 69\% & \textbf{3.12} \\
-    \midrule
-    \textit{reward-only (oracle)} & $+0.187\ [0.157, 0.221]$ & 0.960 & 86\% & n/a \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{figs/pf_autopolish.png}
-  \caption{\textbf{AutoPolish is fast and identity-preserving.} \textbf{(left)} How the score of the best image so far rises with each round, averaged over all images (shaded band: 95\% CI). Most of the gain arrives in the first three or four rounds. \textbf{(right)} Each dot showing how much the final image improved, against how much it still resembles the original. Almost every image sits far to the right of the similarity floor we impose.}
-  \label{fig:c4quant}
-\end{figure}
-
-\begin{figure}[b!]
-  \centering
-  \includegraphics[width=0.52\linewidth]{figs/pf_qualitative4.png}
-  \caption{\textbf{What the audience asks for.} Source and each condition's committed best edit, with held-out scores, for the images the audience critic helped most. \textsc{autopolish} (bold) proposes semantically meaningful changes, such as plants and artwork in a bare office, light in a dark sunset, and a player behind a basketball, that \textsc{static} and \textsc{blind} do not.}
-  \label{fig:c4qual}
-\end{figure}
-\begin{figure}[t!]
-  \centering
-  \includegraphics[width=0.62\linewidth]{figs/pf_progression4.png}
-  \caption{\textbf{The loop over time.} The committed best-so-far image after refinement steps 0-10 for the \textsc{autopolish} critic, with the held-out aesthetic score above each cell. The audience's complaints accumulate across steps, so the edits arrive as visible increments rather than one jump, and the score rises monotonically by construction.}
-  \label{fig:c4prog}
-\end{figure}
-
-% Break the page (not \clearpage) so the pending qualitative figures take the
-% bottom slot here and the top slot overleaf, and the conclusion follows them.
-\newpage
 
 \section{Conclusion}
 
@@ -961,6 +963,7 @@ Figure~\ref{fig:c4quant} in the main text shows how the refinement loop behaves 
 \end{figure}
 
 \section{Additional qualitative AutoPolish results}
+\label{sup:c4qual}
 Figure~\ref{fig:c4-qual-full} shows the complete top-five grid from which the main paper's figure takes its second through fifth rows, and Figure~\ref{fig:c4-qual2} a further set of images restricted to cases where the society critic attains the highest held-out score. As before, the audience critic proposes semantically meaningful changes that the fixed string and the generic critic do not: adding a player behind a basketball, revealing a kitchen behind a chef, opening a bright sky behind a structure, adding a vehicle to an empty snowy courtyard, and intensifying a sunset.
 
 \begin{figure}[tbp]
@@ -978,6 +981,7 @@ Figure~\ref{fig:c4-qual-full} shows the complete top-five grid from which the ma
 \end{figure}
 
 \section{The refinement loop over time}
+\label{sup:c4prog}
 Figure~\ref{fig:c4-prog} visualizes the auto-research loop itself, at full size and for all eight images (the main text lifts four of these rows into Figure~\ref{fig:c4prog}): each row is one image, and the columns are the best-so-far result after refinement steps $0, 2, 4, 6$, and $10$. Read left to right, each row shows the image being progressively polished as the audience critic accumulates and applies its complaints, with the held-out aesthetic score rising monotonically along the way. The edits are visible and semantically coherent over time: a Milky Way emerging over a night road, a sunset road gaining light and a passing vehicle, a wildlife scene brightening into focus.
 
 \begin{figure}[tbp]
@@ -1071,6 +1075,16 @@ Viewers looking at this image want these changes:\\
 - <complaint 2>\\
 \ \ \dots\\[2pt]
 Rewrite everything into ONE concrete imperative photo-edit instruction of at most 15 words that an image editor can apply. Output only the instruction.
+\end{promptbox}
+
+\subsubsection{Editor instructions shared by all critics.} The static string uses one fixed instruction at every step, while the other critics produce their own. In every condition, the same request for a visible edit is appended to the instruction before it reaches the image editor.
+\begin{promptbox}{Static string (fixed instruction)}
+\ttfamily\footnotesize
+Improve the overall aesthetic quality of this image.
+\end{promptbox}
+\begin{promptbox}{Visible-edit request (appended for every critic)}
+\ttfamily\footnotesize
+Make this a clearly visible edit, not a subtle one, while keeping the same subject and scene.
 \end{promptbox}
 
 \section{Example: a panel reacting to one image}
