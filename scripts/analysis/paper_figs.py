@@ -25,6 +25,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import patheffects
+from matplotlib import transforms as mtransforms
 from matplotlib.legend_handler import HandlerTuple
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
@@ -198,6 +200,17 @@ def fig_audience() -> str:
 # page; the composites above stay as they are for NeurIPS and WACV, which
 # share this figs/ directory and whose captions still say left/middle/right.
 # --------------------------------------------------------------------------
+def _err(vals, cis):
+    """Asymmetric error-bar half-widths from point estimates and 95% CIs."""
+    vals = np.asarray(vals, dtype=float)
+    lo = np.array([c[0] for c in cis], dtype=float)
+    hi = np.array([c[1] for c in cis], dtype=float)
+    return np.vstack([vals - lo, hi - vals])
+
+
+ERRKW = dict(ecolor=theme.INK, elinewidth=0.6, capsize=1.4, capthick=0.6)
+
+
 def fig_persona() -> str:
     """Persona steerability: calibration, then the two text-level effects.
 
@@ -219,8 +232,10 @@ def fig_persona() -> str:
     raw = [cal[d]["raw"]["group_mae"] for d in DSS]
     cald = [cal[d]["calibrated"]["group_mae"] for d in DSS]
     prior = [cal[d]["calibrated"]["population_prior_group_mae"] for d in DSS]
-    a1.bar(x - w / 2, raw, w, color=[theme.DATASET[d] for d in DSS], zorder=3)
-    a1.bar(x + w / 2, cald, w, color=theme.NEUTRAL, zorder=3)
+    a1.bar(x - w / 2, raw, w, color=[theme.DATASET[d] for d in DSS], zorder=3,
+           yerr=_err(raw, [cal[d]["raw"]["group_mae_ci95"] for d in DSS]), error_kw=ERRKW)
+    a1.bar(x + w / 2, cald, w, color=theme.NEUTRAL, zorder=3,
+           yerr=_err(cald, [cal[d]["calibrated"]["group_mae_ci95"] for d in DSS]), error_kw=ERRKW)
     for xi, p in zip(x, prior):
         a1.plot([xi - 0.46, xi + 0.46], [p, p], color=theme.INK, lw=1.4,
                 ls=(0, (3, 1.6)), zorder=4)
@@ -242,10 +257,14 @@ def fig_persona() -> str:
     # alone. The persona-blind control sitting on the chance line is the whole
     # point, so the line is drawn over the bars rather than under them.
     w = 0.36
-    full = [rat[d]["auc_full"] for d in DSS]
-    blind = [rat[d]["auc_blind"] for d in DSS]
-    a2.bar(x - w / 2, full, w, color=[theme.DATASET[d] for d in DSS], zorder=3)
-    a2.bar(x + w / 2, blind, w, color=theme.NEUTRAL, zorder=3)
+    # rater-split AUC (mean over folds) so the bars and their bootstrap CIs come
+    # from the same estimator; within 0.003 of the random-split values.
+    full = [rat[d]["auc_full_rater_oof"] for d in DSS]
+    blind = [rat[d]["auc_blind_rater_oof"] for d in DSS]
+    a2.bar(x - w / 2, full, w, color=[theme.DATASET[d] for d in DSS], zorder=3,
+           yerr=_err(full, [rat[d]["auc_full_rater_oof_ci95"] for d in DSS]), error_kw=ERRKW)
+    a2.bar(x + w / 2, blind, w, color=theme.NEUTRAL, zorder=3,
+           yerr=_err(blind, [rat[d]["auc_blind_rater_oof_ci95"] for d in DSS]), error_kw=ERRKW)
     a2.axhline(0.5, ls=(0, (3, 1.6)), lw=1.0, color=theme.INK, zorder=4)
     a2.set_xticks(x)
     a2.set_xticklabels(DSS)
@@ -259,21 +278,28 @@ def fig_persona() -> str:
                Line2D([0], [0], color=theme.INK, lw=1.0, ls=(0, (3, 1.6)))],
               ["persona", "blind", "chance"],
               handler_map={tuple: HandlerTuple(ndivide=None)},
-              loc="upper center", ncol=3, columnspacing=0.7, handlelength=1.6,
-              handletextpad=0.35, borderpad=0.1, fontsize=5.5)
+              loc="upper center", ncol=3, columnspacing=0.5, handlelength=1.2,
+              handletextpad=0.3, borderpad=0.1, fontsize=5.5)
 
     # (right) how many of the rationales are distinct. Same two-bar encoding as
-    # the middle panel, so this one carries no legend of its own.
+    # the middle panel, with its own persona/blind key (no chance line here), and
+    # headroom so the key clears the tall PARA bar.
     fd = [rat[d]["rationale_diversity_full"] for d in DSS]
     bd = [rat[d]["rationale_diversity_blind"] for d in DSS]
-    a3.bar(x - w / 2, fd, w, color=[theme.DATASET[d] for d in DSS], zorder=3)
-    a3.bar(x + w / 2, bd, w, color=theme.NEUTRAL, zorder=3)
+    a3.bar(x - w / 2, fd, w, color=[theme.DATASET[d] for d in DSS], zorder=3,
+           yerr=_err(fd, [rat[d]["rationale_diversity_full_ci95"] for d in DSS]), error_kw=ERRKW)
+    a3.bar(x + w / 2, bd, w, color=theme.NEUTRAL, zorder=3,
+           yerr=_err(bd, [rat[d]["rationale_diversity_blind_ci95"] for d in DSS]), error_kw=ERRKW)
     a3.set_xticks(x)
     a3.set_xticklabels(DSS)
-    a3.set_ylabel("distinct\nrationales")
-    a3.set_ylim(0, max(fd) * 1.3)
+    a3.set_ylabel("distinct comments\nper rater")
+    a3.set_ylim(0, max(fd) * 1.45)
     a3.grid(True, axis="y")
     a3.set_axisbelow(True)
+    a3.legend([key, Patch(facecolor=theme.NEUTRAL)], ["persona", "blind"],
+              handler_map={tuple: HandlerTuple(ndivide=None)},
+              loc="upper center", ncol=2, columnspacing=0.7, handlelength=1.6,
+              handletextpad=0.35, borderpad=0.1, fontsize=5.5)
 
     fig.tight_layout(w_pad=0.9, pad=0.25)
     p = os.path.join(FIGS, "pf_persona.png")
@@ -282,6 +308,59 @@ def fig_persona() -> str:
     return p
 
 
+
+
+def fig_steer(width: float = 5.5, height: float = 1.5) -> str:
+    """Score-level steerability, redrawn at text width for the ACCV main text.
+
+    Same numbers as ``steerability.plot`` (b1_steerability.png, now superseded in
+    the paper): one point per (attribute, level) group, placed by how far that
+    group's real ratings depart from the per-image crowd mean (x) and how far the
+    VLM's ratings depart under that group's persona (y). Drawn wide and low so it
+    can sit under ``pf_persona`` at full width without doubling its height.
+    """
+    from steerability import DATASETS, steer_dataset
+
+    print_size()
+    fig, axes = plt.subplots(1, 3, figsize=(width, height))
+    for k, (ax, ds) in enumerate(zip(axes, DSS)):
+        rep = steer_dataset(ds, DATASETS[ds])
+        cells = rep["_cells"]
+        xe = np.array([c["empirical_effect"] for c in cells])
+        ye = np.array([c["vlm_effect"] for c in cells])
+        n = np.array([c["n"] for c in cells], dtype=float)
+        lim = max(np.abs(xe).max(), np.abs(ye).max()) * 1.1
+        ax.plot([-lim, lim], [-lim, lim], ls=(0, (3, 1.6)), color=theme.NEUTRAL, lw=0.8, zorder=1)
+        ax.axhline(0, color=theme.GRID, lw=0.6, zorder=0)
+        ax.axvline(0, color=theme.GRID, lw=0.6, zorder=0)
+        ax.scatter(xe, ye, s=np.sqrt(n) * 0.55, alpha=0.75, color=theme.DATASET[ds],
+                   edgecolor="white", linewidth=0.3, zorder=3)
+        ax.set_xlim(-lim, lim)
+        ax.set_ylim(-lim, lim)
+        # r sits on the agreement line it is measured against. Rotation is given
+        # in data space, so the text follows the diagonal however wide the panel;
+        # it ends short of the corner and a white halo keeps it clear of the dots.
+        ax.text(0.88 * lim, 0.88 * lim, f"r = {rep['steerability_corr']:+.2f}",
+                transform=mtransforms.offset_copy(ax.transData, fig=fig, y=1.8, units="points"),
+                rotation=45, rotation_mode="anchor", transform_rotates_text=True,
+                ha="right", va="bottom", color=theme.INK, fontweight="bold",
+                fontsize=plt.rcParams["axes.titlesize"] - 2, zorder=5,
+                path_effects=[patheffects.withStroke(linewidth=1.6, foreground="white")])
+        # The dataset key goes in the upper-left corner, which no panel uses.
+        ax.legend([Line2D([0], [0], ls="", marker="o", markersize=4,
+                          markerfacecolor=theme.DATASET[ds], markeredgecolor="white",
+                          markeredgewidth=0.3)], [ds],
+                  loc="upper left", frameon=False, handletextpad=0.2,
+                  borderaxespad=0.2, borderpad=0.1)
+        ax.set_xlabel("real group departure")
+        if k == 0:
+            ax.set_ylabel("VLM group departure")
+        ax.grid(False)
+    fig.tight_layout(w_pad=0.9, pad=0.25)
+    p = os.path.join(FIGS, "pf_steer.png")
+    fig.savefig(p, dpi=DPI, bbox_inches="tight")
+    plt.close(fig)
+    return p
 
 
 def fig_separation(width: float = 2.15, height: float = 1.21) -> str:
@@ -805,6 +884,7 @@ if __name__ == "__main__":
     os.makedirs(FIGS, exist_ok=True)
     print("wrote", fig_audience())
     print("wrote", fig_persona())
+    print("wrote", fig_steer())
     print("wrote", fig_separation())
     print("wrote", fig_generated())
     print("wrote", fig_bias_wide())

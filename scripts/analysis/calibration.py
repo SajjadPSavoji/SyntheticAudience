@@ -55,12 +55,24 @@ def cross_fit_calibrate(df: pd.DataFrame, dim: str, k: int = 2) -> pd.Series:
     return cal
 
 
+def _boot_mean_ci(x: np.ndarray, n_boot: int = 1000, seed: int = 0) -> list:
+    """95% percentile bootstrap CI of a mean over images. Uses its own generator so the
+    module RNG (which sets the calibration folds) is never advanced by the bootstrap."""
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, len(x), size=(n_boot, len(x)))
+    means = x[idx].mean(axis=1)
+    return [round(float(np.percentile(means, 2.5)), 4), round(float(np.percentile(means, 97.5)), 4)]
+
+
 def _metrics(d: pd.DataFrame, gt: str, predcol: str) -> dict:
     ind_err = (d[predcol] - d[gt]).abs()
     grp = d.groupby("imageName").agg(pm=(predcol, "mean"), om=(gt, "mean"))
     grp_err = (grp["pm"] - grp["om"]).abs()
     pop_err = (grp["om"] - d[gt].mean()).abs()
     return {
+        "group_mae_ci95": _boot_mean_ci(grp_err.to_numpy()),
+        "population_prior_group_mae_ci95": _boot_mean_ci(pop_err.to_numpy()),
+        "n_images": int(len(grp)),
         "individual_mae": round(float(ind_err.mean()), 4),
         "individual_bias": round(float((d[predcol] - d[gt]).mean()), 4),
         "spearman": round(float(stats.spearmanr(d[predcol], d[gt]).statistic), 4),

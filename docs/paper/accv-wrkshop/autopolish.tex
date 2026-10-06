@@ -67,6 +67,9 @@
   left=5pt, right=5pt, top=3pt, bottom=3pt}
 % typewriter prompt text: straight quotes and real hyphens (no ligatures)
 \newcommand{\pt}[1]{{\ttfamily\footnotesize #1}}
+% Appendix references: a live \ref in the full build; the main-only build has no
+% appendix, so it prints the given section number instead of "??".
+\newcommand{\appref}[2]{\ifdefined\mainonly #2\else\ref{#1}\fi}
 
 % Palette shared with all figures (validated categorical hues).
 \definecolor{aeblue}{HTML}{2A78D6}   % primary  — synthetic audience
@@ -286,19 +289,28 @@ We measure how reliable a single rating is compared with the average rating of a
 
 Table~\ref{tab:ceiling} shows a large gap between the two reliabilities. Averaged over the three datasets, a single rating reaches a reliability of only 0.29, so most of what one person says about an image is their own, while the average of a group reaches 0.90, which means a second group of viewers would give nearly the same average. The gap also varies with the kind of image, since a single rating is most reliable on the PARA photographs at 0.47, drops to 0.22 on the EVA photographs, and is lowest on the LAPIS paintings at 0.19, where a group average still holds at 0.84. Paintings therefore draw the most personal reactions, although the difference between the two photograph datasets suggests that the type of image is not the only factor. The profile attributes explain only 2.3\% of personal taste on average and at most 4\%, and learning each rater's taste from their own past ratings lowers prediction error only modestly. Together, these results suggest that the group is a more realistic target than the individual, so we evaluate the synthetic audience on groups in the rest of the paper.
 
-\subsection{The persona steers the judge in language more than in score}
+\subsection{Personas change how the VLM reacts to an image}
 \label{sec:persona}
 
-\subsubsection{The persona changes what the judge says.} Giving the judge a persona moves its answers, and it moves them in the direction the real ratings go. On the two datasets that describe their raters in detail, the scores shift the right way ($r{=}0.37$ on PARA, $0.39$ on LAPIS). The written comments shift even more: from the text alone we can tell what kind of viewer it was written for, well above chance on all three datasets, and the judge writes four times as many distinct comments as it does with no persona at all. On EVA this shows up only in the text, because the coarse integer score hides it. One correction is needed before any of this is usable. The judge rates almost everything near the middle of the scale, so we calibrate it once; this roughly halves the error of the audience's average and puts it below simply guessing the average rating on every dataset (Figure~\ref{fig:persona}, left).
-
-\subsubsection{The persona is computed even when the score cannot express it.} Score-level steerability understates the persona's effect, because a coarse integer scale has no room to register a small shift in taste. The free-text rationales do. We train a held-out probe to recover a rater's attribute from the judge's generated rationale alone, with the score discarded. Under the persona judge the probe performs well above chance on all three datasets; run against the persona-blind control it sits at chance (Figure~\ref{fig:persona}, middle), and the persona judge produces several times more distinct rationales (right). The decisive case is EVA, where the score-level effect is absent: the text-level effect is still there, so the persona is being computed and expressed in language even where the rating scale hides it. This matters for the method and not only for the analysis, because what AutoPolish consumes downstream is the critique text, not the number.
+We compare the reactions of a persona-conditioned VLM with those of the blind variant, asking how the two differ and which is closer to how real viewers react. First, we compare the audience's calibrated average for each image with the real average and with a prior that always predicts the overall average rating. Second, to check whether the persona moves the scores in the right direction, we subtract each image's average from every rating, which leaves only how each rater departs from the crowd, then average these departures over each group of viewers, such as people with more or less art experience, and correlate the VLM's group departures with the real ones. Third, we train a logistic regression on TF-IDF features to guess a rater's attribute from their comment alone, using art experience on PARA, photographic skill on EVA and interest in art on LAPIS, and we count how many distinct comments the VLM writes for the same image. Training details and detailed results are provided in Appendix~\appref{sup:probe}{A5}.
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/pf_persona.png}
-  \caption{\textbf{The persona reaches the judge, and reaches its language hardest.} \textbf{(left)} One out-of-fold isotonic calibration roughly halves group error and pushes the audience below the population-mean prior on every dataset. \textbf{(middle)} A probe recovers a rater's attribute from the generated rationale alone, far above chance under the persona judge and at chance under the persona-blind control. \textbf{(right)} The persona judge writes several times as many distinct rationales. EVA is the decisive case: no score-level effect, but both text-level effects are present.}
+  \caption{The audience's rating error and what its comments reveal about the viewer. \textbf{(left)} Error of the audience's average rating before and after calibration, against the prior. \textbf{(middle)} How well a classifier recovers a rater's attribute from the comment alone and \textbf{(right)} distinct comments per rater of an image, both with and without a persona. Error bars are 95\% bootstrap intervals. Calibration beats the prior on every dataset, and the persona makes the comments more varied and more telling of the viewer. Exact values are given in Appendix~\appref{sup:fig2}{A6}.}
   \label{fig:persona}
+
+  \vspace{6pt}
+  \includegraphics[width=\linewidth]{figs/pf_steer.png}
+  \caption{How far each group of viewers departs from the crowd in its real ratings (horizontal) and in the VLM's ratings under that group's persona (vertical), on each dataset. Each point is one group, marker size shows how many ratings it has, and the dashed line marks perfect agreement. The VLM follows the real groups on PARA and LAPIS but not on EVA.}
+  \label{fig:steer}
 \end{figure}
+
+Figure~\ref{fig:persona} (left) shows that the raw scores of the synthetic audience are not directly usable. The VLM rates almost every image near the middle of the scale, so on every dataset the audience's average lands further from the real average than the prior does. A single calibration fixes this, cutting the audience's error roughly in half, from 0.14 to 0.07 on average against 0.10 for the prior, and it beats the prior on each dataset separately.
+
+Figure~\ref{fig:steer} shows that the persona moves the VLM's scores in the same direction that real viewers differ. On PARA and LAPIS, which describe their raters in detail, the VLM's group departures follow the real ones with a correlation of 0.37 and 0.39. On EVA they do not, with a negative correlation of $-0.24$, which we attribute to EVA recording little about its raters and using a coarse whole-number scale that leaves little room for small shifts in taste.
+
+The impact of the persona is clearer in the written comments than in the scores. A classifier trained on the comments alone tells viewer groups apart well above chance on all three datasets, scoring 0.58 to 0.70, while on the blind variant it stays at chance (Figure~\ref{fig:persona}, middle). The persona also makes the comments far more varied. On average, the VLM writes about 37 different comments for every 100 raters of an image, against 10 for the blind variant, which is nearly four times as many (Figure~\ref{fig:persona}, right). Together, these results suggest that the persona does change how the VLM reacts to an image, a little in the scores it gives and much more in what it writes.
 
 \subsection{The synthetic audience reproduces inter-group opinion splits}
 \label{sec:audience}
@@ -759,11 +771,11 @@ Experimental study of inequality and unpredictability in an artificial cultural 
 
 \appendix
 \setcounter{section}{0}
-\renewcommand{\thesection}{S\arabic{section}}
+\renewcommand{\thesection}{A\arabic{section}}
 \setcounter{figure}{0}
-\renewcommand{\thefigure}{S\arabic{figure}}
+\renewcommand{\thefigure}{A\arabic{figure}}
 \setcounter{table}{0}
-\renewcommand{\thetable}{S\arabic{table}}
+\renewcommand{\thetable}{A\arabic{table}}
 
 This appendix gives the dataset details, the per-experiment figures behind the composite panels of the main paper, additional analyses and ablations, the future directions this work points to (Section~\ref{sup:future}), and finally the exact prompts with two worked examples of the AutoPolish loop. All figures share the palette used in the main text, and every number carries the same 1000-sample bootstrap, clustered by rater and image.
 
@@ -829,15 +841,74 @@ The raw judge concentrates its answers on a single value far more than humans do
   \label{fig:style}
 \end{figure}
 
-\section{The persona moves the score}
-Figure~\ref{fig:steer} shows the score-level steerability behind the claim that the persona is functional: persona-induced deviation plotted against the empirical group deviation, per dataset, with marker size proportional to slice support.
+\section{Reading the persona from the comments}
+\label{sup:probe}
 
-\begin{figure}[tbp]
+Section~\ref{sec:persona} reports that the comments the model writes carry the persona it was given, even where its scores do not. This section describes the classifier behind that claim, the data it was trained on, and the checks that rule out the two most likely alternative explanations. Table~\ref{tab:probe} gives every number.
+
+\subsubsection{Classifier and data.} For each dataset we pair every comment the model wrote while role-playing a rater with one attribute of that rater, namely art experience on PARA, photographic skill on EVA and interest in art on LAPIS. The score the model gave is discarded, so the classifier sees only the text. Numeric attributes are split into three equal-sized groups and categorical ones keep their own levels, and any level with fewer than 500 comments is dropped. We draw 30{,}000 comments at random from each dataset (seed 0) out of 51.7k on PARA, 136.9k on EVA and 90.3k on LAPIS, which cover 436, 998 and 530 raters. Each comment is turned into TF-IDF weights over the 2{,}000 most frequent words, ignoring English stop words and words that appear in fewer than five comments, and a multinomial logistic regression with the default L2 penalty ($C{=}1$, at most 300 iterations, scikit-learn) predicts the attribute from these weights. We score it with 3-fold cross-validation and report the one-versus-rest ROC-AUC averaged over classes, where 0.5 is chance. We use AUC rather than accuracy because the classes are uneven, most of all on EVA, where always guessing the largest class would already be right two times in three while its AUC would stay at 0.5.
+
+\subsubsection{Why a simple classifier.} We keep the classifier deliberately simple. It sees only which words appear in a comment, knows nothing about the image, and draws a straight boundary between classes, so whatever it finds is carried by plain word choice rather than by a powerful model reading patterns into noise. We therefore treat its scores as a conservative estimate of how much of the persona the comments carry.
+
+\subsubsection{Check 1: the image is not the signal.} Raters with different attributes may have rated somewhat different images, and the comments describe those images, so a classifier could in principle guess the attribute from the image content alone. The blind variant tests this directly. It sees the same images for the same raters and goes through the same pipeline, but receives no persona, and its classifier stays at chance on every dataset (0.50 to 0.51). Image content therefore carries no usable trace of the attribute, and the gain under the persona comes from the persona itself.
+
+\subsubsection{Check 2: the classifier is not recognising individual raters.} Random folds place comments from the same rater in both training and test data, and because every comment for one rater comes from the same persona card, the classifier could learn the phrasing of particular cards instead of the attribute. We therefore repeat the evaluation with folds split by rater, so that no rater appears on both sides, and refit the TF-IDF weights inside each fold. The scores do not move (0.579, 0.704 and 0.695, against 0.578, 0.701 and 0.695 with random folds), and the blind variant stays at chance. The classifier has learned how a kind of viewer writes, and that knowledge carries over to raters it has never seen.
+
+\subsubsection{Distinct comments.} For every image rated by at least ten people we divide the number of distinct comments by the number of raters, and average this ratio over images. With personas the model writes between three and five times as many distinct comments per image as the blind variant.
+
+\begin{table}[tbp]
+  \caption{Recovering a rater's attribute from the model's comment alone. AUC is the one-versus-rest ROC-AUC averaged over classes (0.5 is chance), under random folds and under folds split by rater. Art experience has four classes and the other two attributes three. Distinct comments is the number of different comments per rater on an image, averaged over images.}
+  \label{tab:probe}
   \centering
-  \includegraphics[width=0.95\linewidth]{figs/b1_steerability.png}
-  \caption{\textbf{The persona is functional.} Persona-induced deviation against the empirical group deviation, per dataset; marker size is slice support. On the attribute-rich datasets the persona moves the judge in the direction the data says it should ($r{=}0.37$ on PARA, $0.39$ on LAPIS); on the thin-persona EVA it does not, matching the richness ordering.}
-  \label{fig:steer}
-\end{figure}
+  \footnotesize
+  \setlength{\tabcolsep}{2.4pt}
+  \begin{tabular}{@{}llcccccc@{}}
+    \toprule
+    & & \multicolumn{2}{c}{Persona AUC} & \multicolumn{2}{c}{Blind AUC} & \multicolumn{2}{c}{Distinct comments} \\
+    \cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){7-8}
+    Dataset & Attribute & random & by rater & random & by rater & persona & blind \\
+    \midrule
+    PARA  & art experience      & 0.578 & 0.579 & 0.498 & 0.503 & 0.44 & 0.11 \\
+    EVA   & photographic skill  & 0.701 & 0.704 & 0.511 & 0.513 & 0.24 & 0.08 \\
+    LAPIS & interest in art     & 0.695 & 0.695 & 0.506 & 0.507 & 0.42 & 0.09 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Exact values for Figure~\ref{fig:persona}}
+\label{sup:fig2}
+
+Table~\ref{tab:fig2} lists every number plotted in Figure~\ref{fig:persona}, with its 95\% confidence interval in brackets. All intervals come from 1{,}000 bootstrap resamples. For the left and right panels we resample images, since each value is an average over images. For the middle panel we resample raters, because the comments written for one rater are not independent of each other. The AUC is computed within each of the three folds split by rater and then averaged, so each rater is scored only by a classifier that never saw them during training (Appendix~\ref{sup:probe}). The prior always predicts the overall average rating, and chance is the AUC of a classifier that guesses.
+
+\begin{table}[tbp]
+  \caption{Exact values behind Figure~\ref{fig:persona}, with 95\% bootstrap confidence intervals in brackets.}
+  \label{tab:fig2}
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    & PARA & EVA & LAPIS \\
+    \midrule
+    \multicolumn{4}{@{}l}{\textit{Left: error of the audience's average rating for an image (lower is better)}} \\
+    Raw & 0.184 [0.180, 0.188] & 0.103 [0.101, 0.105] & 0.145 [0.142, 0.147] \\
+    Calibrated & 0.062 [0.060, 0.065] & 0.063 [0.062, 0.065] & 0.072 [0.070, 0.074] \\
+    Prior & 0.102 [0.099, 0.106] & 0.081 [0.079, 0.083] & 0.105 [0.103, 0.108] \\
+    Images & 2{,}000 & 4{,}070 & 4{,}000 \\
+    \midrule
+    \multicolumn{4}{@{}l}{\textit{Middle: AUC of recovering a rater's attribute from the comment alone}} \\
+    Persona & 0.579 [0.570, 0.587] & 0.704 [0.688, 0.728] & 0.695 [0.676, 0.713] \\
+    Blind & 0.503 [0.498, 0.509] & 0.513 [0.504, 0.530] & 0.507 [0.499, 0.515] \\
+    Chance & 0.500 & 0.500 & 0.500 \\
+    Comments / raters & 30{,}000 / 436 & 30{,}000 / 998 & 30{,}000 / 530 \\
+    \midrule
+    \multicolumn{4}{@{}l}{\textit{Right: distinct comments per rater of an image}} \\
+    Persona & 0.436 [0.429, 0.444] & 0.245 [0.241, 0.248] & 0.421 [0.416, 0.425] \\
+    Blind & 0.114 [0.111, 0.117] & 0.085 [0.083, 0.086] & 0.092 [0.090, 0.094] \\
+    Images & 2{,}000 & 4{,}070 & 4{,}000 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \section{AutoPolish dynamics: convergence and identity}
 Figure~\ref{fig:c4quant} in the main text shows how the refinement loop behaves over its ten steps and where the committed edits land relative to the identity guardrail: all conditions rise and saturate by step 3-4, the reward-only oracle traces the ceiling, and the three critic conditions overlap on this generic objective, the measurement ceiling discussed there. Figure~\ref{fig:c4head} restates the per-condition mean gain as bars with bootstrap intervals, and adds the same gain-versus-identity scatter at full size.
