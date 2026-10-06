@@ -41,6 +41,7 @@ SLICES = {
 from attrs import load_attributes
 
 MIN_CELL = 4      # min raters of a level on an image to estimate its mean
+_POOLED: dict = {}   # dataset -> (full cells, blind cells), pooled over slices, for the average
 RNG = np.random.default_rng(0)
 
 
@@ -129,6 +130,7 @@ def analyze(dataset: str) -> dict:
             "distribution_match_full": _dist_match(full, a),
         }
     # pooled over all attributes
+    _POOLED[dataset] = (pd.concat(all_full, ignore_index=True), pd.concat(all_blind, ignore_index=True))
     out["overall"] = {
         "full_separation": _separation(pd.concat(all_full, ignore_index=True)),
         "blind_separation": _separation(pd.concat(all_blind, ignore_index=True)),
@@ -173,10 +175,42 @@ def plot(report: dict) -> str:
     return path
 
 
+def _average(n_boot: int = 1000, seed: int = 0) -> dict:
+    """Mean of the three per-dataset pooled separations, with a 95% bootstrap CI.
+
+    Each bootstrap round resamples images (clustered, as in `_separation`) independently
+    within every dataset, recomputes the three correlations and averages them, so the
+    interval carries the sampling uncertainty of all three datasets. Uses its own
+    generator, so the per-dataset CIs above are unchanged."""
+    rng = np.random.default_rng(seed)
+    out = {}
+    for kind, k in (("full_separation", 0), ("blind_separation", 1)):
+        by_ds = {}
+        for ds, cells in _POOLED.items():
+            c = cells[k]
+            by_ds[ds] = {img: g[["obs_gap", "pred_gap"]].to_numpy() for img, g in c.groupby("imageName")}
+        point = float(np.mean([stats.pearsonr(_POOLED[ds][k]["pred_gap"], _POOLED[ds][k]["obs_gap"]).statistic
+                               for ds in _POOLED]))
+        boot = []
+        for _ in range(n_boot):
+            rs = []
+            for ds, imgs in by_ds.items():
+                keys = np.array(list(imgs), dtype=object)
+                arr = np.concatenate([imgs[i] for i in keys[rng.integers(0, len(keys), len(keys))]])
+                rs.append(np.corrcoef(arr[:, 0], arr[:, 1])[0, 1])
+            boot.append(np.mean(rs))
+        out[kind] = {"corr": round(point, 4),
+                     "ci95": [round(float(np.percentile(boot, 2.5)), 4),
+                              round(float(np.percentile(boot, 97.5)), 4)],
+                     "datasets": sorted(_POOLED)}
+    return out
+
+
 def main() -> None:
     ensure_out()
     report = {ds: analyze(ds) for ds in SLICES}
     report["_figure"] = plot(report)
+    report["_average"] = _average()
     path = write_json(report, "c1_separation.json")
     print(f"\nWrote {path}\nWrote {report['_figure']}\n")
 

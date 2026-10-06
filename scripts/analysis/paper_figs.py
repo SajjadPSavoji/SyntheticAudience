@@ -363,37 +363,47 @@ def fig_steer(width: float = 5.5, height: float = 1.5) -> str:
     return p
 
 
-def fig_separation(width: float = 2.15, height: float = 1.21) -> str:
-    """The between-group separation panel on its own.
+def fig_separation(width: float = 2.15, height: float = 0.88) -> str:
+    """The between-group separation panel on its own, plus the cross-dataset average.
 
     Drawn narrow because the ACCV draft sets it beside the Holm table rather
     than beside another panel; ``width`` is the physical inches it occupies on
-    the page, so the type size here is the type size in print.
+    the page, so the type size here is the type size in print. The last group is
+    the mean of the three datasets (``_average`` in c1_separation.json, with a
+    bootstrap CI over all three), drawn in dark gray and set off by a faint rule.
     """
     c1 = load("c1_separation")
+    avg = c1["_average"]
 
     print_size()
     fig, ax = plt.subplots(figsize=(width, height))
-    x = np.arange(3)
+    labels = DSS + ["Average"]
+    x = np.arange(len(labels))
     w = 0.36
-    full = [c1[d]["overall"]["full_separation"]["corr"] for d in DSS]
-    blind = [c1[d]["overall"]["blind_separation"]["corr"] for d in DSS]
-    err = np.array([[f - c1[d]["overall"]["full_separation"]["ci95"][0],
-                     c1[d]["overall"]["full_separation"]["ci95"][1] - f]
-                    for f, d in zip(full, DSS)]).T
-    ax.bar(x - w / 2, full, w, yerr=err, capsize=1.6,
-           error_kw=dict(ecolor=theme.INK, lw=0.7, capthick=0.7),
-           color=[theme.DATASET[d] for d in DSS], zorder=3)
-    ax.bar(x + w / 2, blind, w, color=theme.NEUTRAL, zorder=3)
+
+    def series(kind):
+        vals = [c1[d]["overall"][kind]["corr"] for d in DSS] + [avg[kind]["corr"]]
+        cis = [c1[d]["overall"][kind]["ci95"] for d in DSS] + [avg[kind]["ci95"]]
+        err = np.array([[v - c[0], c[1] - v] for v, c in zip(vals, cis)]).T
+        return vals, err
+
+    full, ferr = series("full_separation")
+    blind, berr = series("blind_separation")
+    ekw = dict(ecolor=theme.INK, lw=0.7, capthick=0.7)
+    ax.bar(x - w / 2, full, w, yerr=ferr, capsize=1.6, error_kw=ekw,
+           color=[theme.DATASET[d] for d in DSS] + [theme.MUTED], zorder=3)
+    ax.bar(x + w / 2, blind, w, yerr=berr, capsize=1.6, error_kw=ekw,
+           color=theme.NEUTRAL, zorder=3)
     ax.axhline(0, color=theme.MUTED, lw=0.6)
+    ax.axvline(2.5, color=theme.GRID, lw=0.8, zorder=1)
     ax.set_xticks(x)
-    ax.set_xticklabels(DSS)
+    ax.set_xticklabels(labels)
     ax.set_ylabel("group separation $r$")
     ax.set_ylim(-0.135, 0.345)
     ax.grid(True, axis="y")
     ax.set_axisbelow(True)
     key = tuple(Patch(facecolor=theme.DATASET[d]) for d in DSS)
-    ax.legend([key, Patch(facecolor=theme.NEUTRAL)], ["persona", "no persona"],
+    ax.legend([key, Patch(facecolor=theme.NEUTRAL)], ["persona", "blind"],
               handler_map={tuple: HandlerTuple(ndivide=None)}, handlelength=1.4,
               loc="upper left", ncol=2, columnspacing=0.8,
               labelspacing=0.2, handletextpad=0.3, borderpad=0.15, fontsize=5.5)
@@ -408,18 +418,17 @@ def fig_separation(width: float = 2.15, height: float = 1.21) -> str:
 
 
 def fig_generated() -> str:
-    """Everything the generated-images section shows, in one strip.
+    """The generated-images result, in one strip.
 
     (left) the panel-size curve, (middle) per-pair panel preference against the
-    human crowd, (right) the cross-dataset calibration transfer that licenses
-    running a calibrator fit on photographs over generated images.
+    human crowd. The cross-dataset calibration transfer that used to be the right
+    panel now has its own appendix figure (``fig_calib_transfer``), since it is a
+    property of the calibration and not of the generated-image task.
     """
     from collections import defaultdict
-    from matplotlib.colors import LinearSegmentedColormap
     from c3_rapidata import load_votes
 
     c3 = load("c3")
-    xfer = load("calib_transfer")
 
     # the per-pair arrays are not in c3.json (only their summaries are), so pool
     # the raw votes again here -- it is a dict walk, not a re-analysis
@@ -433,18 +442,15 @@ def fig_generated() -> str:
     Nn = np.array([len(pool_h[k]) for k in keys])
 
     print_size()
-    fig, (a1, a2, a3) = plt.subplots(
-        1, 3, figsize=(5.5, 1.62), gridspec_kw=dict(width_ratios=[1.0, 1.0, 1.15]))
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(5.5, 1.17))
 
     # (left) panel-size curve
     nc = c3["aggregation"]["n_curve"]
     ns = sorted(int(k) for k in nc)
     ys = [nc[str(n)] for n in ns]
     maj = c3["aggregation"]["aggregate_acc_majority"]
-    a1.axhline(maj, ls="--", lw=0.9, color=theme.NEUTRAL, zorder=2)
-    a1.text(ns[-1], maj - 0.003, "majority prior", ha="right", va="top",
-            fontsize=5.5, color=theme.MUTED)
-    a1.plot(ns, ys, "-o", ms=3, color=theme.PRIMARY, zorder=3)
+    a1.axhline(maj, ls="--", lw=0.9, color=theme.NEUTRAL, zorder=2, label="majority prior")
+    a1.plot(ns, ys, "-o", ms=3, color=theme.PRIMARY, zorder=3, label="Rapidata")
     a1.annotate(f"{ys[0]:.3f}", (ns[0], ys[0]), textcoords="offset points",
                 xytext=(3, 3), fontsize=5.5, color=theme.INK)
     a1.annotate(f"{ys[-1]:.3f}", (ns[-1], ys[-1]), textcoords="offset points",
@@ -458,6 +464,9 @@ def fig_generated() -> str:
     a1.set_ylim(min(min(ys), maj) - 0.016, max(ys) + 0.020)
     a1.grid(True, axis="y")
     a1.set_axisbelow(True)
+    # the upper left is empty: the curve is still below the prior there
+    a1.legend(loc="upper left", fontsize=5.5, handlelength=1.6, handletextpad=0.35,
+              borderpad=0.2, labelspacing=0.2, framealpha=0.85)
 
     # (middle) per-pair scatter, points colored by how many humans voted on the
     # pair: rank terciles, so the three support groups stay balanced
@@ -476,8 +485,11 @@ def fig_generated() -> str:
     a2.set_ylim(0, 1)
     a2.set_xticks([0, 0.5, 1])
     a2.set_yticks([0, 0.5, 1])
-    a2.text(0.04, 0.93, f"$r={c3['aggregation']['pair_corr']:+.3f}$",
-            transform=a2.transAxes, fontsize=5.5, va="top", color=theme.INK)
+    lo, hi = c3["aggregation"]["pair_corr_ci"]
+    a2.text(0.04, 0.93, f"$r={c3['aggregation']['pair_corr']:+.3f}$\n95% CI [{lo:.3f}, {hi:.3f}]",
+            transform=a2.transAxes, fontsize=5.0, va="top", color=theme.INK, linespacing=1.3,
+            bbox=dict(boxstyle="round,pad=0.25", facecolor="white", edgecolor="none", alpha=0.85),
+            zorder=4)
     # the tercile colors need a key or they are an unexplained encoding; the
     # lower-right of this scatter is empty, so it costs nothing to put it there
     a2.legend(handles=[Line2D([0], [0], marker="o", ls="", ms=2, color=c, label=l)
@@ -488,6 +500,25 @@ def fig_generated() -> str:
     a2.grid(True)
     a2.set_axisbelow(True)
 
+    fig.tight_layout(w_pad=1.0, pad=0.25)
+    p = os.path.join(FIGS, "pf_generated.png")
+    fig.savefig(p, dpi=DPI, bbox_inches="tight")
+    plt.close(fig)
+    return p
+
+
+def fig_calib_transfer(width: float = 3.2, height: float = 1.55) -> str:
+    """Cross-dataset calibration transfer, for the calibration appendix.
+
+    Rows: dataset the calibrator is evaluated on; columns: dataset it was fit on;
+    cells: calibrated group MAE, with the raw (uncalibrated) error printed at the
+    right as the reference every cell has to beat.
+    """
+    from matplotlib.colors import LinearSegmentedColormap
+
+    xfer = load("calib_transfer")
+    print_size()
+    fig, a3 = plt.subplots(figsize=(width, height))
     # (right) calibration transfer. The printed numbers carry the values, so the
     # colorbar is dropped -- at this width it would cost more than it explains.
     cal = xfer["calibrated_group_mae_[eval][fitOn]"]
@@ -513,8 +544,8 @@ def fig_generated() -> str:
     a3.set_xlabel("calibrator fit on")
     a3.set_ylabel("evaluated on")
 
-    fig.tight_layout(w_pad=1.0, pad=0.25)
-    p = os.path.join(FIGS, "pf_generated.png")
+    fig.tight_layout(pad=0.25)
+    p = os.path.join(FIGS, "pf_calib_transfer.png")
     fig.savefig(p, dpi=DPI, bbox_inches="tight")
     plt.close(fig)
     return p
@@ -887,6 +918,7 @@ if __name__ == "__main__":
     print("wrote", fig_steer())
     print("wrote", fig_separation())
     print("wrote", fig_generated())
+    print("wrote", fig_calib_transfer())
     print("wrote", fig_bias_wide())
     print("wrote", fig_breadth_category())
     print("wrote", fig_autopolish(logs))

@@ -122,7 +122,7 @@ Sajjad Pakdamansavoji\inst{1}$^{\star}$\thanks{Corresponding author.}}
 \begin{abstract}
 Editing an image with today's text-guided tools is a back-and-forth in which a person decides what should change and an AI system makes the change. Because a person must take part in every round, the process does not scale, and the result follows that one person's taste, which may not suit the people the image is meant for. We propose \textbf{AutoPolish}, which replaces that single opinion with a synthetic audience, many copies of a vision-language model that each react as a different viewer described by a short profile. Their combined feedback stands in for how the intended audience would respond, and an auto-research style loop turns it into edits over a fixed number of rounds, keeping each edit only when an independent scorer rates it higher. Across three datasets of photographs and paintings, we show that only 19 to 47\% of one person's rating is shared with other viewers, while the averages of two separate groups agree at a correlation of up to $0.96$, so one viewer is a poor guide to a crowd. We also show that our audience captures how viewer groups differ $10\times$ better than the same model without profiles, and picks the crowd's favorite of two AI-generated images 6 percentage points more often than a simple baseline. In editing, AutoPolish improves images as much as a single generic critic while keeping them recognizable, and proposes $3\times$ as many distinct changes.
 
-\keywords{Image editing \and Auto-Research \and Persona Simulation}
+\keywords{Image editing \and Auto-Research \and Persona Simulation \and VLM}
 \end{abstract}
 
 
@@ -248,7 +248,7 @@ Our contributions are as follows.
 \subsubsection{The frozen LLM judge.} The judge is a pretrained vision-language model that we query but never fine-tune. Each query supplies an image, a persona card, and an instruction to answer in a fixed JSON format; the model returns a score, a short rationale, and a few auxiliary fields. We parse it as strict JSON. If parsing fails, a per-field regular expression recovers the values, so we keep the sample instead of dropping it.  The backbone is \texttt{Qwen2-VL-7B-Instruct} \cite{wang2024qwen2vl}, in bf16. The “persona-blind” control format behaves as if no prompt conditioning were involved for the VLM judgment.
 \subsubsection{From a panel to a group prediction.} To predict how a viewer group responds to an image, we sample $N$ persona cards from the dataset and use them to judge the image, and summarize the reactions: the mean and spread of the scores, the most frequent complaints extracted from the rationales, and compare them with the ground truth scoring.
 
-Averaging over the panel is not enough on its own, because the judge's error is systematic and not random. Its ratings are pulled toward the middle of the scale: their standard deviation is only 51-58\% of the human standard deviation, 34-56\% of them land on a single value, and the endpoints are almost never used. Averaging cancels the random part of the error, but the compression is shared across the group population, so it survives. This is why raw population averages are less accurate than simply predicting the population mean. We therefore correct the scores after inference, using isotonic regression \cite{niculescu2005}. This fits a monotone mapping from the judge's raw score to a calibrated one. We fit the mapping with two-fold cross-fitting over images, so every rating is calibrated by a mapping that was estimated without it. Because the mapping is monotone, it changes the absolute error but leaves every ranking as it was, and because it acts only on the output, the model weights stay frozen. The mapping also transfers across datasets. We can therefore fit it once on real images, where human ratings are available, and apply it unchanged to generated images, for which no per-image ratings exist.
+Averaging over the panel is not enough on its own, because the judge's error is systematic and not random. Its ratings are pulled toward the middle of the scale: their standard deviation is only 51-58\% of the human standard deviation, 34-56\% of them land on a single value, and the endpoints are almost never used. Averaging cancels the random part of the error, but the compression is shared across the group population, so it survives. This is why raw population averages are less accurate than simply predicting the population mean. We therefore correct the scores after inference, using isotonic regression \cite{niculescu2005}. This fits a monotone mapping from the judge's raw score to a calibrated one. We fit the mapping with two-fold cross-fitting over images, so every rating is calibrated by a mapping that was estimated without it. Because the mapping is monotone, it changes the absolute error but leaves every ranking as it was, and because it acts only on the output, the model weights stay frozen. The mapping also transfers across datasets (Appendix~\appref{sup:calib}{A3}). We can therefore fit it once on real images, where human ratings are available, and apply it unchanged to generated images, for which no per-image ratings exist.
 
 \subsubsection{AutoPolish.} AutoPolish uses the group as the critic in an iterative editing loop, under the constraint that the model proposing edits and the model judging them are different, since a loop that scores its own edits can improve its objective without improving the image. Each image is refined for $R=10$ steps of (i) \textbf{critique}: the group views the current image, and its complaints are aggregated across personas and accumulated across steps into a single instruction of at most fifteen words; (ii) \textbf{anchored re-edit}: FLUX.1-Kontext-dev \cite{flux2024} applies that instruction to the \emph{original} image rather than the previous edit, so editing artifacts do not compound, producing $K=3$ candidates; (iii) \textbf{held-out scoring}: each candidate is scored by a LAION aesthetic predictor \cite{schuhmann2022}, a CLIP \cite{radford2021} backbone with an MLP head and thus a different model family from the critic, and checked for identity drift with DINOv2 \cite{oquab2023}; (iv) \textbf{accept-if-better}: the new image replaces the previous best image if the aesthetic score improves and DINOv2 similarity to the original stays above $0.78$, so the best-so-far score increases monotonically. We compare four critics: \textsc{static}, a fixed ``improve this image'' instruction; \textsc{blind}, a single persona-free critique; \textsc{society}, ten aggregated personas, which is our method; and \textsc{reward-only}, which optimizes the aesthetic predictor directly and is an upper reference rather than a comparable baseline. Every condition appends the same suffix asking for a visible edit, so prompt wording cannot explain a difference between \textsc{society} and \textsc{blind}, and we deliberately do not score instruction adherence, which would favour whichever condition writes the instruction that is easiest to follow.
 
@@ -272,13 +272,13 @@ We measure how reliable a single rating is compared with the average rating of a
   \caption{Reliability of a single rating and of a group average, the share of each rater's personal taste that their profile explains, and the average number of raters per image across three datasets. A group average is far more reliable than one rating, and the profile explains little of personal taste.}
   \label{tab:ceiling}
   \centering
-  \small
+  \fontsize{7.5}{9}\selectfont  % llncs aliases \footnotesize to \small
   \setlength{\aboverulesep}{0pt}\setlength{\belowrulesep}{0pt}
-  \renewcommand{\arraystretch}{1.05}
+  \renewcommand{\arraystretch}{1.0}
   \newcolumntype{C}[1]{>{\hsize=#1\hsize\centering\arraybackslash}X}
   \begin{tabularx}{\linewidth}{l|C{0.92}C{0.92}|C{0.96}|C{1.2}}
     \toprule
-    \multirow{2}{*}{Dataset} & \multicolumn{2}{c|}{Reliability\rule{0pt}{2.4ex}\rule[-0.7ex]{0pt}{0pt}} & \multirow{2}{=}[-0.5ex]{\centering Taste explained\newline by profile} & \multirow{2}{=}{\centering \# Raters/image} \\
+    \multirow{2}{*}{Dataset} & \multicolumn{2}{c|}{Reliability $\uparrow$\rule{0pt}{2.4ex}\rule[-0.7ex]{0pt}{0pt}} & \multirow{2}{=}[-0.5ex]{\centering Taste explained\newline by profile} & \multirow{2}{=}{\centering \# Raters/image} \\
     \cline{2-3}
     \rule[-0.8ex]{0pt}{0pt} & single rating\rule{0pt}{2.3ex} & group average & & \\
     \midrule
@@ -293,11 +293,6 @@ We measure how reliable a single rating is compared with the average rating of a
 
 Table~\ref{tab:ceiling} shows a large gap between the two reliabilities. Averaged over the three datasets, a single rating reaches a reliability of only 0.29, so most of what one person says about an image is their own, while the average of a group reaches 0.90, which means a second group of viewers would give nearly the same average. The gap also varies with the kind of image, since a single rating is most reliable on the PARA photographs at 0.47, drops to 0.22 on the EVA photographs, and is lowest on the LAPIS paintings at 0.19, where a group average still holds at 0.84. Paintings therefore draw the most personal reactions, although the difference between the two photograph datasets suggests that the type of image is not the only factor. The profile attributes explain only 2.3\% of personal taste on average and at most 4\%, and learning each rater's taste from their own past ratings lowers prediction error only modestly. Together, these results suggest that the group is a more realistic target than the individual, so we evaluate the synthetic audience on groups in the rest of the paper.
 
-\subsection{Personas change how the VLM reacts to an image}
-\label{sec:persona}
-
-We compare the reactions of a persona-conditioned VLM with those of the blind variant, asking how the two differ and which is closer to how real viewers react. First, we compare the audience's calibrated average for each image with the real average and with a prior that always predicts the overall average rating. Second, to check whether the persona moves the scores in the right direction, we subtract each image's average from every rating, which leaves only how each rater departs from the crowd, then average these departures over each group of viewers, such as people with more or less art experience, and correlate the VLM's group departures with the real ones. Third, we train a logistic regression on TF-IDF features to guess a rater's attribute from their comment alone, using art experience on PARA, photographic skill on EVA and interest in art on LAPIS, and we count how many distinct comments the VLM writes for the same image. Training details and detailed results are provided in Appendix~\appref{sup:probe}{A5}.
-
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/pf_persona.png}
@@ -310,39 +305,46 @@ We compare the reactions of a persona-conditioned VLM with those of the blind va
   \label{fig:steer}
 \end{figure}
 
+\subsection{Personas change how the VLM reacts to an image}
+\label{sec:persona}
+
+We compare the reactions of a persona-conditioned VLM with those of the blind variant, asking how the two differ and which is closer to how real viewers react. First, we compare the audience's calibrated average for each image with the real average and with a prior that always predicts the overall average rating. Second, to check whether the persona moves the scores in the right direction, we subtract each image's average from every rating, which leaves only how each rater departs from the crowd, then average these departures over each group of viewers, such as people with more or less art experience, and correlate the VLM's group departures with the real ones. Third, we train a logistic regression on TF-IDF features to guess a rater's attribute from their comment alone, using art experience on PARA, photographic skill on EVA and interest in art on LAPIS, and we count how many distinct comments the VLM writes for the same image. Training details and detailed results are provided in Appendix~\appref{sup:probe}{A5}.
+
 Figure~\ref{fig:persona} (left) shows that the raw scores of the synthetic audience are not directly usable. The VLM rates almost every image near the middle of the scale, so on every dataset the audience's average lands further from the real average than the prior does. A single calibration fixes this, cutting the audience's error roughly in half, from 0.14 to 0.07 on average against 0.10 for the prior, and it beats the prior on each dataset separately.
 
 Figure~\ref{fig:steer} shows that the persona moves the VLM's scores in the same direction that real viewers differ. On PARA and LAPIS, which describe their raters in detail, the VLM's group departures follow the real ones with a correlation of 0.37 and 0.39. On EVA they do not, with a negative correlation of $-0.24$, which we attribute to EVA recording little about its raters and using a coarse whole-number scale that leaves little room for small shifts in taste.
 
 The impact of the persona is clearer in the written comments than in the scores. A classifier trained on the comments alone tells viewer groups apart well above chance on all three datasets, scoring 0.58 to 0.70, while on the blind variant it stays at chance (Figure~\ref{fig:persona}, middle). The persona also makes the comments far more varied. On average, the VLM writes about 37 different comments for every 100 raters of an image, against 10 for the blind variant, which is nearly four times as many (Figure~\ref{fig:persona}, right). Together, these results suggest that the persona does change how the VLM reacts to an image, a little in the scores it gives and much more in what it writes.
 
-\subsection{The synthetic audience reproduces inter-group opinion splits}
+\subsection{The synthetic audience simulates population reactions}
 \label{sec:audience}
+\label{sec:generated}
 
-Our main result is that the audience recovers not just the average opinion but the way opinion splits. On paintings, the gaps we predict between two groups of viewers looking at the same image line up with the gaps in the real ratings ($+0.166$, 95\% CI $[0.150, 0.181]$), while the same judge without personas sits at essentially zero ($+0.016$; Figure~\ref{fig:audience}). It holds for each way of dividing the viewers on its own: by nationality ($+0.068$), by interest in art ($+0.088$), and by age ($+0.102$). On the photograph datasets the effect is weak but real on PARA ($+0.044$) and absent on EVA ($-0.084$). That ordering, LAPIS $>$ PARA $>$ EVA, is exactly the order of how much each dataset tells us about its raters. Because that is eight slice tests over three datasets, we correct for multiple comparisons rather than reporting the best of them: six of the eight survive Holm correction at $\alpha=0.05$, including every LAPIS slice and both PARA experience slices (Table~\ref{tab:holm}). The two that fail --- PARA age and EVA photo.\ level --- are reported as null, not dropped.
+We test whether a panel of persona-conditioned VLMs, the synthetic audience, can stand in for the reaction of a target population, at two levels. At the level of distributions, we ask whether panels built for different groups of viewers reproduce the real differences between those groups. Using the between-group separation of the evaluation protocol, we split the raters of each image by one attribute, namely art experience, photography experience and age on PARA, photographic skill and age on EVA, and nationality, interest in art and age on LAPIS, keep groups with at least four raters, and compare the predicted gaps between groups with the real ones, which gives eight tests across the three datasets. At the level of a task, we ask whether the panel picks the same image as the crowd. On the AI-generated pairs of Rapidata, the VLM casts one vote for every human vote, conditioned on that voter's country and language. For each pair we draw a panel of one to twenty of these votes, take its majority choice and compare it with the crowd's majority, averaging over 200 random draws, against a baseline that always picks the image from the model the crowd prefers overall.
 
 \begin{figure}[t]
   \centering
   \begin{minipage}[t]{0.52\linewidth}
     \vspace{0pt}
     \centering
-    \captionof{table}{Holm-corrected slice tests ($n=8$, $\alpha=0.05$). Six of eight between-group separations survive correction, including the nationality slice that the cross-cultural analysis builds on.}
+    \captionof{table}{Separation between viewer groups for each attribute, with $p$-values corrected for running eight tests (Holm, $\alpha=0.05$). The audience gets the direction right in five of the eight cases and backwards for age on EVA.}
     \label{tab:holm}
-    \vspace{2pt}
+    \vspace{0pt}
     \scriptsize
     \setlength{\tabcolsep}{2.2pt}
+    \renewcommand{\arraystretch}{0.82}
     \begin{tabular}{llccc}
       \toprule
-      Dataset & slice & sep.\ $r$ & Holm $p$ & surv. \\
+      Dataset & slice & sep.\ $r\,\uparrow$ & Holm $p\,\downarrow$ & surv. \\
       \midrule
       LAPIS & age                   & $+0.102$ & $<10^{-3}$ & \checkmark \\
       LAPIS & art interest          & $+0.088$ & $<10^{-3}$ & \checkmark \\
-      EVA   & age                   & $-0.079$ & $<10^{-3}$ & \checkmark \\
       LAPIS & nationality           & $+0.068$ & $8\times10^{-5}$ & \checkmark \\
       PARA  & photo.\ exp.\     & $+0.055$ & $1.1\times10^{-4}$ & \checkmark \\
       PARA  & art exp.\             & $+0.040$ & $4.2\times10^{-3}$ & \checkmark \\
-      EVA   & photo.\ level    & $-0.018$ & $0.50$ & $\times$ \\
       PARA  & age                   & $+0.008$ & $0.50$ & $\times$ \\
+      EVA   & photo.\ level    & $-0.018$ & $0.50$ & $\times$ \\
+      EVA   & age                   & $-0.079$ & $<10^{-3}$ & \checkmark \\
       \bottomrule
     \end{tabular}
   \end{minipage}\hfill
@@ -350,22 +352,21 @@ Our main result is that the audience recovers not just the average opinion but t
     \vspace{0pt}
     \centering
     \includegraphics[width=\linewidth]{figs/pf_separation.png}
-    \caption{\textbf{The audience recovers real differences between viewer groups.} Predicted between-group gaps track the real ones (bootstrap 95\% CIs); without personas the same judge sits at zero.}
+    \caption{Separation between viewer groups on each dataset and on average, with 95\% bootstrap intervals. The persona gets the direction right on LAPIS and PARA but not on EVA, while the blind variant stays near zero.}
     \label{fig:audience}
   \end{minipage}
 \end{figure}
 
-\subsection{Aggregating weak persona votes recovers crowd preference on generated images}
-\label{sec:generated}
-
-We repeat the test on 23{,}445 crowd votes over 898 pairs of generated images, asking the judge to answer as a voter from a given country and pick the better image of the two. A single simulated voter is close to a coin flip (0.532 correct). An audience of twenty agrees with the crowd 65.7\% of the time, above the 60.0\% reached by always choosing the more popular image, and agreement climbs steadily as the audience grows (Figure~\ref{fig:generated}, left). This is the clearest view of why collective reaction works: each vote leans the right way only slightly, and averaging enough of them turns a slight lean into a reliable answer. Per pair, the aggregated audience's predicted preference correlates with the human crowd's observed win-rate at $r{=}+0.466$ (95\% CI $[0.415, 0.515]$; Figure~\ref{fig:generated}, middle), so this is a graded preference signal rather than a coin-flip that happens to land right. The step that licenses running a calibrator fit on real photographs over generated images is verified separately: every off-diagonal transfer of the isotonic map sits far below the raw error (Figure~\ref{fig:generated}, right), so the correction is a general scale fix and not a dataset-specific one.
+Figure~\ref{fig:audience} shows how well the predicted differences between groups follow the real ones, where a positive value means the audience gets the direction of the differences right. On LAPIS it does so clearly, with a correlation of 0.166 against 0.016 for the blind variant. On PARA the effect is weaker but still present (0.044), while on EVA the predictions point the opposite way ($-0.084$). Averaged over the three datasets, the audience reaches 0.042 against 0.003 for the blind variant. Table~\ref{tab:holm} breaks these results down by the attribute used to form the groups. In five of the eight cases the audience gets the direction right. On EVA, grouping viewers by age gives the opposite direction, which explains the negative result for EVA in Figure~\ref{fig:audience}, and the remaining two cases show no clear effect either way. The order LAPIS, PARA, EVA follows how much each dataset records about its raters, which suggests that the audience reproduces the differences within a population as far as its profiles describe them.
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{figs/pf_generated.png}
-  \caption{\textbf{The audience transfers to AI-generated images.} \textbf{(left)} Agreement with the human crowd rises monotonically with the number of simulated voters and overtakes the majority prior; a single voter is close to a coin flip. \textbf{(middle)} Per pair, the aggregated panel's predicted preference tracks the crowd's observed win-rate over 898 pairs ($r{=}{+}0.466$, 95\% CI $[0.415, 0.515]$), so this is a graded signal rather than a coin flip that lands right; points are colored by how many humans voted on the pair. \textbf{(right)} The isotonic calibrator transfers across datasets: every off-diagonal cell (fit on one dataset, evaluated on another) sits far below the raw uncalibrated error at the right, so the correction is a general scale fix and not a dataset-specific one.}
+  \caption{The synthetic audience on AI-generated image pairs. \textbf{(left)} Agreement with the crowd's majority as the panel grows, against the prior of always picking the more popular model. \textbf{(right)} Panel against crowd preference per pair, colored by number of voters. Agreement passes the prior with more personas, and the panel tracks the crowd.}
   \label{fig:generated}
 \end{figure}
+
+Figure~\ref{fig:generated} (left) shows that the vote of a single persona-conditioned VLM agrees with the crowd's majority on 58.8\% of pairs, just below the 60.0\% of always picking the more popular model, but agreement rises as more personas are added to the panel and reaches 65.7\% with twenty. Figure~\ref{fig:generated} (right) shows that, per pair, the share of the panel that prefers an image tracks the share of the crowd that does, with a correlation of 0.47, so the panel gives a graded preference rather than a lucky guess. Together, these results suggest that the votes of many persona-conditioned VLMs add up to a usable estimate of a population's preferences.
 
 \subsection{Who the audience speaks for: calibration is not equal across viewers}
 \label{sec:fairness}
@@ -851,6 +852,7 @@ Table~\ref{tab:data} gives the four corpora in full. The ordering that matters i
 \end{table}
 
 \section{Calibration in full: individual, group, and prior}
+\label{sup:calib}
 Figure~\ref{fig:cal} expands the calibration panel of Figure~\ref{fig:persona} to show the individual as well as the group. Out-of-fold isotonic calibration roughly halves group error and pushes the calibrated group (blue, fourth bar) below the population-mean prior (orange) on all three datasets, while the individual prediction, even after calibration, stays near-noise exactly as the ceiling analysis predicts.
 
 \begin{figure}[tbp]
@@ -858,6 +860,15 @@ Figure~\ref{fig:cal} expands the calibration panel of Figure~\ref{fig:persona} t
   \includegraphics[width=0.98\linewidth]{figs/b4_calibration.png}
   \caption{\textbf{Calibration is what makes the aggregate beat the prior.} Normalized MAE for individual (hatched) and group (solid) predictions, raw versus calibrated, with the population-mean prior for reference. The calibrated group beats the prior on all three datasets; the individual does not, and cannot.}
   \label{fig:cal}
+\end{figure}
+
+The correction also carries over between datasets (Figure~\ref{fig:caltransfer}). Fitting it on one dataset and applying it to another lowers the error below the raw error in every case, though not as far as a fit on the dataset itself, so a mapping fit on rated images can be reused where no per-image ratings exist, such as on generated images.
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=0.62\linewidth]{figs/pf_calib_transfer.png}
+  \caption{Error of the audience's average rating when the calibration is fit on one dataset (columns) and applied to another (rows), next to the raw error. A fit from another dataset always beats the raw scores but does less well than a fit on the dataset itself, shown in bold.}
+  \label{fig:caltransfer}
 \end{figure}
 
 \section{Why calibration is needed: the judge's central-tendency bias}
