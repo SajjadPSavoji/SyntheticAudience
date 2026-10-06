@@ -231,11 +231,15 @@ Our contributions are as follows.
 
 \section{Related work}
 
-\subsubsection{Vision-language models as aesthetic judges.} Scorers built on CLIP made it practical to rate an image the model has never been trained on \cite{schuhmann2022, ke2023vila}, and instruction-tuned multimodal models improved on them by describing quality in words before turning it into a rating, which tracks human scores closely \cite{wu2024qbench, wu2024qalign}. They remain weaker than people at the finer judgments and at explaining them \cite{huang2024aesbench, zhou2024uniaa}, which is why models fine-tuned for aesthetics exist \cite{huang2024aesexpert}. What all of them share is that they return one verdict per image, so they have nothing to say about how that verdict changes per viewer.
 
-\subsubsection{Simulating Human Behavior with language models.} A separate literature asks models to answer as a particular kind of person. Given someone's demographics, they reproduce survey answers with surprising fidelity \cite{argyle2023}, though later work is more cautious: simulated answers vary less than real ones \cite{bisbee2024synthetic}, they misrepresent several groups \cite{santurkar2023whose}, and persona prompts slide easily into stereotype \cite{cheng2023compost}. The lesson we carry over is that these simulations are trustworthy about groups rather than individuals, and only once calibrated. It is also a literature almost entirely about text, which leaves open whether a persona changes how a model sees a picture. That is the question we take up.
+\subsubsection{Vision-language models as judges.} Using another AI model as a judge has become a widely adopted approach for evaluating the output of a model \cite{zheng2023judging, liu2023geval}. For aesthetics, the early zero-shot scorers were built on CLIP embeddings \cite{wang2023clipiqa}, which made open-vocabulary image quality assessment practical, and were followed by aesthetic predictors trained on CLIP embeddings \cite{schuhmann2022} or pretrained on image-comment pairs \cite{ke2023vila}. Later, multimodal LLMs were used as scorers by deriving a continuous score from the logits of the quality tokens \cite{wu2024qbench}, and instruction tuning them to predict discrete text-defined quality levels instead of a numerical score improved the alignment with human ratings \cite{wu2024qalign}. However, general-purpose VLMs are still weaker than humans in detailed aesthetic reasoning and explanation \cite{huang2024aesbench, zhou2024uniaa}, which motivated models fine-tuned specifically for aesthetic perception \cite{zhou2024uniaa, huang2024aesexpert}. None of these approaches is conditioned on the viewer: each of them models one consensus judgment per image, typically a single general Mean Opinion Score (MOS). As a result, the disagreement inside the audience is collapsed into a static score, and there is no mechanism to model how aesthetic judgments vary across viewer groups or demographics.
 
-\subsubsection{Feedback loops for editing.} A third line of work refines outputs against feedback. Most of it uses a reward: a learned preference model \cite{xu2023imagereward, kirstain2023pickapic}, reinforcement learning \cite{fan2023dpok, black2024ddpo}, reward gradients \cite{clark2024draft, prabhudesai2023alignprop}, or preference optimization \cite{wallace2024dpo}. A parallel line replaces the number with language, letting a model criticize its own output \cite{madaan2023selfrefine, shinn2023reflexion, gou2024critic}; for images, a vision-language model finds the fault and an instruction-based editor repairs it \cite{wu2024sld, wang2024genartist, brooks2023instructpix2pix, flux2024}. Two problems recur. A reward is a single number, so disagreement between viewers is averaged away before the model sees it, and when one model both proposes an edit and scores it, the improvement it reports is its own bias \cite{xu2024selfbias}. AutoPolish avoids both: its feedback comes from a group of viewers and arrives as words rather than a score, and the model that judges the result belongs to a different family from the one that makes the edit \cite{schuhmann2022, oquab2023}.
+\subsubsection{Simulating human behavior with language models.} Language models conditioned on a person's demographics have been shown to reproduce human survey answers with surprising fidelity \cite{argyle2023}, suggesting that persona-conditioned models can serve as a proxy for human samples. Later work, however, reports clear limitations: simulated answers vary less than real ones \cite{bisbee2024synthetic}, several groups are misrepresented \cite{santurkar2023whose}, and persona prompts slide easily into stereotype \cite{cheng2023compost}. Taken together, these findings indicate that such simulations are trustworthy at the level of groups rather than individuals, and only once calibrated. Moreover, this literature is almost entirely about text, which leaves open whether a persona also changes how a model perceives an image. We address this question for aesthetic judgment.
+
+\subsubsection{Bias in aesthetic models.} Aesthetic predictors are used to filter web-scale training corpora \cite{schuhmann2022}, so their bias passes to the models trained on the filtered data. Taylor et al.\ \cite{taylor2026gaze} audit the LAION aesthetic predictor and find that it gives the highest scores to realistic landscapes, cityscapes and portraits by western and Japanese artists. For multimodal LLMs, AesBiasBench \cite{aesbiasbench2025} measures how aesthetic evaluations vary across demographic groups, and reports that adding identity information to the prompt often increases stereotype bias. Our audit in Section~\ref{sec:fairness} studies bias over viewers: for each persona attribute we measure the calibration gap of the judge against real ratings. On age, gender and education, the attributes examined in \cite{aesbiasbench2025}, the gap is small. On viewer nationality it is ten times larger.
+
+\subsubsection{Feedback loops for editing.} A line of work improves the outputs of generative models using feedback. Most of these methods rely on a reward, such as a learned preference model \cite{xu2023imagereward, kirstain2023pickapic}, reinforcement learning \cite{black2024ddpo, fan2023dpok}, reward gradients \cite{clark2024draft, prabhudesai2023alignprop}, or preference optimization \cite{wallace2024dpo}. Other methods replace the reward with language feedback, where a model criticizes its own output \cite{madaan2023selfrefine, shinn2023reflexion, gou2024critic}. For images, a vision-language model identifies the problem and a correction is applied to the image \cite{wu2024sld, wang2024genartist}, for example by an instruction-based editor \cite{brooks2023instructpix2pix, flux2024}. These approaches have two limitations. First, a reward is a single number, so the disagreement between viewers is already lost before the model receives it. Second, when the same model proposes an edit and also scores it, the improvement it reports can come from its own bias instead of a real improvement \cite{xu2024selfbias}. AutoPolish addresses both limitations. Its feedback comes from a group of simulated viewers and is given as text instead of a score, and the model that judges the result is from a different model family than the model that proposes the edit \cite{schuhmann2022, oquab2023}.
+
 
 \section{Method}
 \label{sec:method}
@@ -746,6 +750,31 @@ Processing (EMNLP)}.
 Hu, E.J., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang, S., Wang, L.\ and Chen, W.\ (2022)
 LoRA: Low-rank adaptation of large language models.
 In {\it International Conference on Learning Representations (ICLR)}.
+
+
+\bibitem{zheng2023judging}
+Zheng, L., Chiang, W.-L., Sheng, Y., Zhuang, S., Wu, Z., Zhuang, Y., Lin, Z., Li, Z., Li, D.,
+Xing, E.P., Zhang, H., Gonzalez, J.E.\ and Stoica, I.\ (2023)
+Judging LLM-as-a-judge with MT-Bench and Chatbot Arena.
+In {\it Advances in Neural Information Processing Systems 36 (NeurIPS), Datasets and Benchmarks Track}.
+
+\bibitem{liu2023geval}
+Liu, Y., Iter, D., Xu, Y., Wang, S., Xu, R.\ and Zhu, C.\ (2023)
+G-Eval: NLG evaluation using GPT-4 with better human alignment.
+In {\it Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing (EMNLP)}, pp.\ 2511--2522.
+
+\bibitem{wang2023clipiqa}
+Wang, J., Chan, K.C.K.\ and Loy, C.C.\ (2023)
+Exploring CLIP for assessing the look and feel of images.
+In {\it Proceedings of the AAAI Conference on Artificial Intelligence} {\bf 37}(2):2555--2563.
+
+
+
+\bibitem{taylor2026gaze}
+Taylor, J., Agnew, W., Sap, M., Fox, S.E.\ and Zhu, H.\ (2026)
+The algorithmic gaze of image quality assessment: An audit and trace ethnography of the
+LAION-Aesthetics Predictor.
+doi:10.1145/3805689.3806462. {\it arXiv preprint arXiv:2601.09896}.
 
 \bibitem{salganik2006}
 Salganik, M.J., Dodds, P.S.\ and Watts, D.J.\ (2006)
