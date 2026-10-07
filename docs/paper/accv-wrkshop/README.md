@@ -10,6 +10,7 @@ supplementary material are unchanged; only the formatting layer was rewritten.
 | --- | --- |
 | `autopolish.tex` | the paper — main text **and** supplement |
 | `autopolish_main.tex` | wrapper that defines `\mainonly` and skips the supplement |
+| `references.bib` | bibliography, typeset with `splncs04.bst`; every entry checked against its publisher or proceedings record |
 | `accv.sty`, `accvabbrv.sty`, `llncs.cls`, `splncs04.bst` | official ACCV 2026 template, unmodified |
 | `ACCV_template_reference.tex`, `TEMPLATE_README.md`, `lncs_readme.txt` | the template's own example paper and docs, kept for reference |
 | `figs` | symlink to `../neurips_creative_ai/figs` (24 MB, not duplicated) |
@@ -52,10 +53,9 @@ Both compile clean: no errors, no overfull boxes, no undefined references.
    it would need substantial cutting.
 2. **Paper ID.** Replace `ID=*****` in `autopolish.tex` once OpenReview assigns one.
 3. **Abstract length.** LNCS recommends ~150 words; the current abstract is ~390.
-4. **Bibliography.** Still a hand-written `thebibliography`, not `splncs04.bst`.
-   It renders close to LNCS style but is not exactly it — worth converting to a
-   `.bib` + `\bibliographystyle{splncs04}` before camera-ready (`splncs04.bst` is
-   already in this directory).
+4. **Bibliography.** Done: `references.bib` + `\bibliographystyle{splncs04}`.
+   BibTeX prints only cited entries, so the main-only build omits references
+   that are cited only in the supplement.
 5. **PDF size.** ACCV asks for < 10 MB. `autopolish_main.pdf` is 6.2 MB (fine);
    the combined file with the supplement is 27 MB, so submit the supplement
    separately or downsample `figs/`.

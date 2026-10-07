@@ -370,7 +370,7 @@ def fig_separation(width: float = 2.15, height: float = 0.88) -> str:
     than beside another panel; ``width`` is the physical inches it occupies on
     the page, so the type size here is the type size in print. The last group is
     the mean of the three datasets (``_average`` in c1_separation.json, with a
-    bootstrap CI over all three), drawn in dark gray and set off by a faint rule.
+    bootstrap CI over all three), drawn in dark gray and set off by a dashed rule.
     """
     c1 = load("c1_separation")
     avg = c1["_average"]
@@ -395,7 +395,7 @@ def fig_separation(width: float = 2.15, height: float = 0.88) -> str:
     ax.bar(x + w / 2, blind, w, yerr=berr, capsize=1.6, error_kw=ekw,
            color=theme.NEUTRAL, zorder=3)
     ax.axhline(0, color=theme.MUTED, lw=0.6)
-    ax.axvline(2.5, color=theme.GRID, lw=0.8, zorder=1)
+    ax.axvline(2.5, color=theme.MUTED, lw=0.6, ls=(0, (3, 2)), zorder=1)
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
     ax.set_ylabel("group separation $r$")
@@ -1055,6 +1055,12 @@ def _fit_aspect(render, target: float, lo: float = 0.02, hi: float = 0.9) -> str
 
 # Full page in llncs: 12.2 x 19.3 cm, minus a two-line caption and its skip.
 ACCV_FULLPAGE_ASPECT = (19.3 - 1.28) / 12.2
+# Per-figure targets: each figure gives back the extra height its caption takes
+# beyond two lines (measured from LaTeX's "Float too large" overflow, plus ~2.5pt of
+# slack). Re-measure if a caption is rewritten.
+_PT = 2.54 / 72.27
+ACCV_MORE_ASPECT = (19.3 - 1.28 - (17.705 + 2.5) * _PT) / 12.2   # A6, caption ~3 lines
+ACCV_PROG_ASPECT = (19.3 - 1.28 - (6.857 + 2.5) * _PT) / 12.2    # A7, caption 3 lines
 
 
 def fig_accv_appendix_examples(logs_dir: str, edits_dir: str) -> list:
@@ -1068,14 +1074,14 @@ def fig_accv_appendix_examples(logs_dir: str, edits_dir: str) -> list:
     more = _fit_aspect(lambda gap: fig_qualitative(
         logs_dir, edits_dir, n_show=8, skip=5, row_offset=0, society_top=True,
         reorder=False, out_name="ax_qualitative_more_accv.png",
-        notes=ACCV_APPX_QUAL_NOTES, row_gap=gap, **kw), ACCV_FULLPAGE_ASPECT)
+        notes=ACCV_APPX_QUAL_NOTES, row_gap=gap, **kw), ACCV_MORE_ASPECT)
     keep = PROG_ROWS
     PROG_ROWS = ACCV_APPX_PROG_ROWS
     try:
         prog = _fit_aspect(lambda gap: fig_progression(
             logs_dir, edits_dir, out_name="ax_progression_accv.png",
             notes=ACCV_APPX_PROG_NOTES, label_pad=3.2, hspace=0.24, row_gap=gap),
-            ACCV_FULLPAGE_ASPECT)
+            ACCV_PROG_ASPECT)
     finally:
         PROG_ROWS = keep
     return [top5, more, prog]

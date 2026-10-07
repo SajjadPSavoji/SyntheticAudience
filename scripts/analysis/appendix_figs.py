@@ -58,7 +58,9 @@ def fig_calibration() -> str:
     print_size()
     plt.rcParams["hatch.linewidth"] = 0.35
     plt.rcParams["hatch.color"] = "white"
-    fig, (a1, a2, a3) = plt.subplots(1, 3, figsize=(5.5, 1.21))
+    # widths follow the bars per group: 2 (VLM, human), 2, and 4 (raw/calibrated x single/group)
+    fig, (a1, a2, a3) = plt.subplots(1, 3, figsize=(5.5, 1.21),
+                                     gridspec_kw={"width_ratios": [2, 2, 4]})
 
     # (left) the VLM piles its answers onto one value far more than people do
     vm = [style[d]["vlm"]["modal_share"] for d in DSS]
@@ -72,21 +74,30 @@ def fig_calibration() -> str:
 
     # (right) calibration helps the group average far more than one rating.
     # Raw bars carry the dataset hue and calibrated ones are gray, as in the
-    # calibration panel of pf_persona; hatching marks the single rating.
-    x = np.arange(3)
+    # calibration panel of pf_persona; hatching marks the single rating. The
+    # last group is the mean of the three datasets (all on the same normalized
+    # scale), drawn in dark gray and set off by a dashed rule as in pf_separation.
+    labels = DSS + ["Average"]
+    x = np.arange(len(labels))
     w = 0.2
-    hue = [theme.DATASET[d] for d in DSS]
+    hue = [theme.DATASET[d] for d in DSS] + [theme.MUTED]
+
+    def with_mean(stage, key):
+        vals = [cal[d][stage][key] for d in DSS]
+        return vals + [float(np.mean(vals))]
+
     series = [
-        ([cal[d]["raw"]["individual_mae"] for d in DSS], hue, HATCH),
-        ([cal[d]["calibrated"]["individual_mae"] for d in DSS], theme.NEUTRAL, HATCH),
-        ([cal[d]["raw"]["group_mae"] for d in DSS], hue, None),
-        ([cal[d]["calibrated"]["group_mae"] for d in DSS], theme.NEUTRAL, None),
+        (with_mean("raw", "individual_mae"), hue, HATCH),
+        (with_mean("calibrated", "individual_mae"), theme.NEUTRAL, HATCH),
+        (with_mean("raw", "group_mae"), hue, None),
+        (with_mean("calibrated", "group_mae"), theme.NEUTRAL, None),
     ]
     for k, (vals, color, hatch) in enumerate(series):
         a3.bar(x + (k - 1.5) * w, vals, w, color=color, hatch=hatch,
                edgecolor="white", linewidth=0, zorder=3)
+    a3.axvline(2.5, color=theme.MUTED, lw=0.6, ls=(0, (3, 2)), zorder=1)
     a3.set_xticks(x)
-    a3.set_xticklabels(DSS)
+    a3.set_xticklabels(labels)
     a3.set_ylabel("rating error (MAE)")
     a3.set_ylim(0, 0.42)
     a3.grid(True, axis="y")
