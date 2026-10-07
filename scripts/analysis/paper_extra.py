@@ -42,7 +42,7 @@ def fig_calib_transfer():
     M = np.array([[cal[ev][ft] for ft in DSS] for ev in DSS])  # rows=eval, cols=fitOn
     theme.apply()
     # green (best) -> orange (worst) spectrum across the actual cells
-    cmap = LinearSegmentedColormap.from_list("go", [theme.AQUA, theme.ORANGE])
+    cmap = LinearSegmentedColormap.from_list("seq", theme.SEQ)
     vmin, vmax = M.min(), M.max()
     fig, ax = plt.subplots(figsize=(5.2, 4.3))
     im = ax.imshow(M, cmap=cmap, vmin=vmin, vmax=vmax)
@@ -81,7 +81,7 @@ def fig_bias():
     labels = [r[0] for r in rows]
     vals = [r[1] for r in rows]
 
-    FAIR, MOD, SERIOUS_C = theme.SEV3  # green, blue, orange
+    FAIR, MOD, SERIOUS_C = theme.SEV3  # light to dark navy
 
     def col(v):
         if v > 0.15:
@@ -219,7 +219,7 @@ def fig_content_category():
     labels = [k for k, _ in items]
     vals = [v["group_mae"] for _, v in items]
     theme.apply()
-    EASY, MOD, HARD = theme.SEV3  # green, blue, orange
+    EASY, MOD, HARD = theme.SEV3  # light to dark navy
     t_easy, t_hard = 0.060, 0.075  # thresholds on calibrated group MAE
 
     def col(v):

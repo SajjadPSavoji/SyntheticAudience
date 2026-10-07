@@ -158,7 +158,7 @@ def fig_audience() -> str:
     ns = sorted(int(k) for k in nc)
     ys = [nc[str(n)] for n in ns]
     maj = c3["aggregation"]["aggregate_acc_majority"]
-    a3.axhline(maj, ls="--", lw=0.9, color=theme.NEUTRAL, zorder=2)
+    a3.axhline(maj, ls="--", lw=0.9, color=theme.REF, zorder=2)
     a3.text(ns[-1], maj - 0.003, "majority prior", ha="right", va="top",
             fontsize=5.5, color=theme.MUTED)
     a3.plot(ns, ys, "-o", ms=3, color=theme.PRIMARY, zorder=3)
@@ -222,7 +222,7 @@ def fig_persona() -> str:
     rat = load("rationale")
 
     print_size()
-    fig, (a1, a2, a3) = plt.subplots(1, 3, figsize=(5.5, 1.21))
+    fig, (a1, a2, a3) = plt.subplots(1, 3, figsize=(5.5, 0.96))
     x = np.arange(3)
 
     # (left) calibration: group MAE raw -> calibrated, against the population
@@ -241,7 +241,7 @@ def fig_persona() -> str:
                 ls=(0, (3, 1.6)), zorder=4)
     a1.set_xticks(x)
     a1.set_xticklabels(DSS)
-    a1.set_ylabel("group error (MAE)")
+    a1.set_ylabel("group error\n(MAE)")
     a1.set_ylim(0, max(raw) * 1.45)
     a1.grid(True, axis="y")
     a1.set_axisbelow(True)
@@ -292,25 +292,26 @@ def fig_persona() -> str:
            yerr=_err(bd, [rat[d]["rationale_diversity_blind_ci95"] for d in DSS]), error_kw=ERRKW)
     a3.set_xticks(x)
     a3.set_xticklabels(DSS)
-    a3.set_ylabel("distinct comments\nper rater")
+    a3.set_ylabel("distinct\ncomments\nper rater")
     a3.set_ylim(0, max(fd) * 1.45)
     a3.grid(True, axis="y")
     a3.set_axisbelow(True)
     a3.legend([key, Patch(facecolor=theme.NEUTRAL)], ["persona", "blind"],
               handler_map={tuple: HandlerTuple(ndivide=None)},
-              loc="upper center", ncol=2, columnspacing=0.7, handlelength=1.6,
+              loc="upper left", ncol=2, columnspacing=0.7, handlelength=1.6,
               handletextpad=0.35, borderpad=0.1, fontsize=5.5)
 
     fig.tight_layout(w_pad=0.9, pad=0.25)
     p = os.path.join(FIGS, "pf_persona.png")
-    fig.savefig(p, dpi=DPI, bbox_inches="tight")
+    fig.savefig(p, dpi=DPI, bbox_inches="tight",
+                pad_inches=0.02)  # thin margin keeps the caption close
     plt.close(fig)
     return p
 
 
 
 
-def fig_steer(width: float = 5.5, height: float = 1.28) -> str:
+def fig_steer(width: float = 5.5, height: float = 0.92) -> str:
     """Score-level steerability, redrawn at text width for the ACCV main text.
 
     Same numbers as ``steerability.plot`` (b1_steerability.png, now superseded in
@@ -330,11 +331,11 @@ def fig_steer(width: float = 5.5, height: float = 1.28) -> str:
         ye = np.array([c["vlm_effect"] for c in cells])
         n = np.array([c["n"] for c in cells], dtype=float)
         lim = max(np.abs(xe).max(), np.abs(ye).max()) * 1.1
-        ax.plot([-lim, lim], [-lim, lim], ls=(0, (3, 1.6)), color=theme.NEUTRAL, lw=0.8, zorder=1)
+        ax.plot([-lim, lim], [-lim, lim], ls=(0, (3, 1.6)), color=theme.REF, lw=0.8, zorder=1)
         ax.axhline(0, color=theme.GRID, lw=0.6, zorder=0)
         ax.axvline(0, color=theme.GRID, lw=0.6, zorder=0)
         ax.scatter(xe, ye, s=np.sqrt(n) * 0.55, alpha=0.75, color=theme.DATASET[ds],
-                   edgecolor="white", linewidth=0.3, zorder=3)
+                   edgecolor=theme.rim(theme.DATASET[ds]), linewidth=0.3, zorder=3)
         ax.set_xlim(-lim, lim)
         ax.set_ylim(-lim, lim)
         # r sits on the agreement line it is measured against. Rotation is given
@@ -348,17 +349,18 @@ def fig_steer(width: float = 5.5, height: float = 1.28) -> str:
                 path_effects=[patheffects.withStroke(linewidth=1.6, foreground="white")])
         # The dataset key goes in the upper-left corner, which no panel uses.
         ax.legend([Line2D([0], [0], ls="", marker="o", markersize=4,
-                          markerfacecolor=theme.DATASET[ds], markeredgecolor="white",
+                          markerfacecolor=theme.DATASET[ds], markeredgecolor=theme.rim(theme.DATASET[ds]),
                           markeredgewidth=0.3)], [ds],
                   loc="upper left", frameon=False, handletextpad=0.2,
                   borderaxespad=0.2, borderpad=0.1)
         ax.set_xlabel("real group departure")
         if k == 0:
-            ax.set_ylabel("VLM group departure")
+            ax.set_ylabel("VLM group\ndeparture")
         ax.grid(False)
     fig.tight_layout(w_pad=0.9, pad=0.25)
     p = os.path.join(FIGS, "pf_steer.png")
-    fig.savefig(p, dpi=DPI, bbox_inches="tight")
+    fig.savefig(p, dpi=DPI, bbox_inches="tight",
+                pad_inches=0.02)  # thin margin keeps the caption close
     plt.close(fig)
     return p
 
@@ -449,7 +451,7 @@ def fig_generated() -> str:
     ns = sorted(int(k) for k in nc)
     ys = [nc[str(n)] for n in ns]
     maj = c3["aggregation"]["aggregate_acc_majority"]
-    a1.axhline(maj, ls="--", lw=0.9, color=theme.NEUTRAL, zorder=2, label="majority prior")
+    a1.axhline(maj, ls="--", lw=0.9, color=theme.REF, zorder=2, label="majority prior")
     a1.plot(ns, ys, "-o", ms=3, color=theme.PRIMARY, zorder=3, label="Rapidata")
     a1.annotate(f"{ys[0]:.3f}", (ns[0], ys[0]), textcoords="offset points",
                 xytext=(3, 3), fontsize=5.5, color=theme.INK)
@@ -460,7 +462,7 @@ def fig_generated() -> str:
     a1.set_xticklabels([str(n) for n in ns])
     a1.minorticks_off()
     a1.set_xlabel("panel size $N$")
-    a1.set_ylabel("agreement w/ crowd")
+    a1.set_ylabel("agreement\nw/ crowd")
     a1.set_ylim(min(min(ys), maj) - 0.016, max(ys) + 0.020)
     a1.grid(True, axis="y")
     a1.set_axisbelow(True)
@@ -476,7 +478,7 @@ def fig_generated() -> str:
     cat[order[: n // 3]] = 0
     cat[order[n // 3: 2 * n // 3]] = 1
     cat[order[2 * n // 3:]] = 2
-    a2.plot([0, 1], [0, 1], ls="--", c=theme.NEUTRAL, lw=0.8, zorder=1)
+    a2.plot([0, 1], [0, 1], ls="--", c=theme.REF, lw=0.8, zorder=1)
     a2.scatter(Hn, Pn, s=1.6, alpha=0.45, color=np.array(theme.BINS3)[cat],
                linewidth=0, zorder=2)
     a2.set_xlabel("human win-rate")
@@ -502,7 +504,8 @@ def fig_generated() -> str:
 
     fig.tight_layout(w_pad=1.0, pad=0.25)
     p = os.path.join(FIGS, "pf_generated.png")
-    fig.savefig(p, dpi=DPI, bbox_inches="tight")
+    fig.savefig(p, dpi=DPI, bbox_inches="tight",
+                pad_inches=0.02)  # thin margin keeps the caption close
     plt.close(fig)
     return p
 
@@ -524,7 +527,7 @@ def fig_calib_transfer(width: float = 3.2, height: float = 1.55) -> str:
     cal = xfer["calibrated_group_mae_[eval][fitOn]"]
     raw = xfer["raw_group_mae"]
     M = np.array([[cal[ev][ft] for ft in DSS] for ev in DSS])
-    cmap = LinearSegmentedColormap.from_list("go", [theme.AQUA, theme.ORANGE])
+    cmap = LinearSegmentedColormap.from_list("seq", theme.SEQ)
     vmin, vmax = M.min(), M.max()
     a3.imshow(M, cmap=cmap, vmin=vmin, vmax=vmax, aspect="auto")
     a3.grid(False)
@@ -575,7 +578,7 @@ def fig_bias_wide() -> str:
 
     labels = [f"{ds}: {nice(at)}" for ds, at, _ in rows]
     vals = [v for _, _, v in rows]
-    FAIR, MOD, SERIOUS_C = theme.SEV3       # green, blue, orange
+    FAIR, MOD, SERIOUS_C = theme.SEV3       # light to dark navy
 
     def col(v):
         return SERIOUS_C if v > 0.15 else (MOD if v > 0.05 else FAIR)
@@ -631,21 +634,26 @@ def fig_breadth_category() -> str:
     cats = load("content_category")["PARA"]["by_category"]
 
     print_size()
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(5.5, 1.72),
+    # same height as ax_calibration_accv, so the appendix figures share one
+    # short strip layout
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(5.5, 1.21),
                                  gridspec_kw=dict(width_ratios=[1.0, 1.12]))
 
     # (left) calibrated panel vs the prior, one point per rated axis. Below the
     # diagonal = the panel beats simply guessing the population mean.
     lim = max(max(r["pop_prior"] for r in dims),
               max(r["group_mae_cal"] for r in dims)) * 1.12
-    a1.plot([0, lim], [0, lim], ls="--", c=theme.NEUTRAL, lw=0.8, zorder=1)
+    a1.plot([0, lim], [0, lim], ls="--", c=theme.REF, lw=0.8, zorder=1)
     for ds in DSS:
         xs = [r["pop_prior"] for r in dims if r["dataset"] == ds]
         ys = [r["group_mae_cal"] for r in dims if r["dataset"] == ds]
         a1.scatter(xs, ys, s=9, alpha=0.9, color=theme.DATASET[ds],
-                   edgecolor="white", linewidth=0.3, label=f"{ds} ({len(xs)})",
+                   edgecolor=theme.rim(theme.DATASET[ds]), linewidth=0.3, label=f"{ds} ({len(xs)})",
                    zorder=3)
     a1.set_xlim(0, lim); a1.set_ylim(0, lim)
+    # same ticks on both axes, so the diagonal reads as equal error
+    ticks = np.arange(0, lim, 0.04)
+    a1.set_xticks(ticks); a1.set_yticks(ticks)
     a1.set_xlabel("population-mean prior")
     a1.set_ylabel("calibrated panel")
     a1.text(lim * 0.96, lim * 0.12, "below the line:\npanel wins", ha="right",
@@ -693,7 +701,7 @@ def fig_breadth_category() -> str:
 # Figure 3 — AutoPolish quantitative (2 panels)
 # --------------------------------------------------------------------------
 def fig_autopolish(logs_dir: str, drift_cap: float = 0.78, labels: dict | None = None,
-                   out_name: str = "pf_autopolish.png") -> str:
+                   out_name: str = "pf_autopolish.png", pad_inches: float = 0.1) -> str:
     labels = labels or C4LABELS   # per-venue legend names (ACCV says "ceiling")
     data = {c: load_c4(c, logs_dir) for c in CONDITIONS}
     present = [c for c in CONDITIONS if len(data[c])]
@@ -711,10 +719,12 @@ def fig_autopolish(logs_dir: str, drift_cap: float = 0.78, labels: dict | None =
         M, _, steps = _best_matrix(data[c])
         mean = M.mean(0)
         ci = np.array([_boot_ci(M[:, s]) for s in range(M.shape[1])])
-        a1.plot(steps, mean, "-o", ms=2.5, color=theme.C4[c], label=labels[c], zorder=3)
+        theme.rim_line(a1, steps, mean, theme.C4[c], plt.rcParams["lines.linewidth"], zorder=3)
+        a1.plot(steps, mean, "-o", ms=2.5, color=theme.C4[c], label=labels[c], zorder=3,
+                markeredgecolor=theme.rim(theme.C4[c], theme.C4[c]), markeredgewidth=0.4)
         a1.fill_between(steps, ci[:, 0], ci[:, 1], color=theme.C4[c], alpha=0.09, zorder=1)
     a1.set_xlabel("refinement step")
-    a1.set_ylabel("best-so-far held-out score")
+    a1.set_ylabel("best-so-far\nheld-out score")
     a1.legend(loc="lower right", fontsize=5.5, borderpad=0.15, labelspacing=0.22,
               handlelength=1.4, handletextpad=0.35)
     a1.grid(True, axis="y")
@@ -728,7 +738,8 @@ def fig_autopolish(logs_dir: str, drift_cap: float = 0.78, labels: dict | None =
         f = _finals(data[c])
         xs = [v["drift_final"] for v in f.values()]
         ys = [v["gain"] for v in f.values()]
-        a2.scatter(xs, ys, s=4.5, alpha=0.72, color=theme.C4[c], linewidth=0, zorder=3)
+        a2.scatter(xs, ys, s=4.5, alpha=0.72, color=theme.C4[c],
+                   edgecolor=theme.rim(theme.C4[c], "none"), linewidth=0.3, zorder=3)
     a2.axvline(drift_cap, ls=(0, (3, 1.6)), lw=1.0, color=theme.INK, zorder=4)
     # headroom so the legend sits over empty plot rather than over the points
     ytop = a2.get_ylim()[1]
@@ -736,7 +747,9 @@ def fig_autopolish(logs_dir: str, drift_cap: float = 0.78, labels: dict | None =
     a2.text(drift_cap + 0.008, ytop * 0.86, f"drift cap ({drift_cap:g})",
             va="top", ha="left", fontsize=5.5, color=theme.MUTED)
     a2.legend(handles=[Line2D([0], [0], marker="o", ms=2.4, lw=0,
-                              color=theme.C4[c], label=labels[c]) for c in present],
+                              color=theme.C4[c], markeredgewidth=0.3,
+                              markeredgecolor=theme.rim(theme.C4[c], theme.C4[c]),
+                              label=labels[c]) for c in present],
               loc="upper center", ncol=2, fontsize=5.5, borderpad=0.2,
               labelspacing=0.22, columnspacing=0.9, handlelength=1.0,
               handletextpad=0.3, framealpha=0.9)
@@ -747,7 +760,7 @@ def fig_autopolish(logs_dir: str, drift_cap: float = 0.78, labels: dict | None =
 
     fig.tight_layout(w_pad=1.0, pad=0.25)
     p = os.path.join(FIGS, out_name)
-    fig.savefig(p, dpi=DPI, bbox_inches="tight")
+    fig.savefig(p, dpi=DPI, bbox_inches="tight", pad_inches=pad_inches)
     plt.close(fig)
     return p
 
@@ -792,7 +805,8 @@ def fig_qualitative(logs_dir: str, edits_dir: str, n_show: int = 2, skip: int = 
                     last: str | None = None, notes: dict | None = None,
                     note_title: str = "Explanation", note_w: float = 1.25,
                     label_pad: float = 1.6, row_gap: float = 0.13, hspace: float = 0.10,
-                    society_top: bool = False, reorder: bool = True) -> str:
+                    society_top: bool = False, reorder: bool = True,
+                    pad_inches: float = 0.1) -> str:
     data = {c: load_c4(c, logs_dir) for c in CONDITIONS}
     present = [c for c in CONDITIONS if len(data[c])]
     finals = {c: _final_best(data[c]) for c in present}
@@ -882,7 +896,7 @@ def fig_qualitative(logs_dir: str, edits_dir: str, n_show: int = 2, skip: int = 
     if notes:
         _notes_column(fig, axes, picks, notes, note_title, label_pad=label_pad)
     p = os.path.join(FIGS, out_name)
-    fig.savefig(p, dpi=DPI, bbox_inches="tight")
+    fig.savefig(p, dpi=DPI, bbox_inches="tight", pad_inches=pad_inches)
     plt.close(fig)
     return p
 
@@ -898,7 +912,8 @@ PROG_ROWS = (2, 6)
 def fig_progression(logs_dir: str, edits_dir: str,
                     out_name: str = "pf_progression.png", notes: dict | None = None,
                     note_title: str = "Explanation", note_w: float = 1.25,
-                    label_pad: float = 1.6, row_gap: float = 0.13, hspace: float = 0.16) -> str:
+                    label_pad: float = 1.6, row_gap: float = 0.13, hspace: float = 0.16,
+                    pad_inches: float = 0.1) -> str:
     df = load_c4("society", logs_dir)
     scored = []
     for iid, g in df.groupby("image_id"):
@@ -948,7 +963,7 @@ def fig_progression(logs_dir: str, edits_dir: str,
         _notes_column(fig, axes, [iid for _, _, iid, _ in picks], notes, note_title,
                       label_pad=label_pad)
     p = os.path.join(FIGS, out_name)
-    fig.savefig(p, dpi=DPI, bbox_inches="tight")
+    fig.savefig(p, dpi=DPI, bbox_inches="tight", pad_inches=pad_inches)
     plt.close(fig)
     return p
 
@@ -983,11 +998,13 @@ def fig_accv_examples(logs_dir: str, edits_dir: str) -> list:
     PROG_ROWS = ACCV_PROG_ROWS
     try:
         prog = fig_progression(logs_dir, edits_dir, out_name="pf_progression_accv.png",
-                               notes=ACCV_PROG_NOTES, label_pad=3.2, hspace=0.24)
+                               notes=ACCV_PROG_NOTES, label_pad=3.2, hspace=0.24,
+                               pad_inches=0.02)  # thin margin keeps the caption close
     finally:
         PROG_ROWS = keep
     qual = fig_qualitative(logs_dir, edits_dir, n_show=3, out_name="pf_qualitative_accv.png",
-                           last="society", notes=ACCV_QUAL_NOTES, label_pad=3.2, hspace=0.18)
+                           last="society", notes=ACCV_QUAL_NOTES, label_pad=3.2, hspace=0.18,
+                           pad_inches=0.02)
     return [prog, qual]
 
 
@@ -1118,7 +1135,7 @@ if __name__ == "__main__":
     print("wrote", fig_breadth_category())
     print("wrote", fig_autopolish(logs))
     print("wrote", fig_autopolish(logs, labels={**C4LABELS, "reward_only": "reward-only (ceiling)"},
-                                  out_name="pf_autopolish_accv.png"))
+                                  out_name="pf_autopolish_accv.png", pad_inches=0.02))
     print("wrote", fig_qualitative(logs, edits, n_show=args.n_show,
                                    out_name="pf_qualitative%s.png" % args.suffix))
     print("wrote", fig_accv_examples(logs, edits))

@@ -209,11 +209,13 @@ def _agg_figures(rep, Hn, Pn, Nn, ncurve):
     # Fig 5: the N-curve — aggregation mechanism transfers to generated images
     fig, ax = plt.subplots(figsize=(5.8, 4.2))
     xs = sorted(ncurve); ys = [ncurve[n] for n in xs]
-    ax.axhline(ag["aggregate_acc_majority"], ls="--", c=theme.BLUE, lw=1.8,
+    ax.axhline(ag["aggregate_acc_majority"], ls="--", c=theme.NAVY, lw=1.8,
                label="always-majority prior")
-    ax.axhline(ag["individual_acc"], ls=":", c=theme.ORANGE, lw=1.8,
+    ax.axhline(ag["individual_acc"], ls=":", c=theme.MAGENTA, lw=1.8,
                label="single vote (individual)")
-    ax.plot(xs, ys, "-o", color=theme.AQUA, label="panel aggregate", zorder=3)
+    theme.rim_line(ax, xs, ys, theme.YELLOW, plt.rcParams["lines.linewidth"], zorder=3)
+    ax.plot(xs, ys, "-o", color=theme.YELLOW, label="panel aggregate", zorder=3,
+            markeredgecolor=theme.YELLOW_RIM, markeredgewidth=0.6)
     ax.set_xlabel("panel size N (personas aggregated)")
     ax.set_ylabel("accuracy predicting the\ncrowd's preferred image")
     ax.legend(loc="lower right", bbox_to_anchor=(1.0, 0.16), frameon=True,

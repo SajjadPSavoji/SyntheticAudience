@@ -93,8 +93,11 @@ def fig_calibration() -> str:
         (with_mean("calibrated", "group_mae"), theme.NEUTRAL, None),
     ]
     for k, (vals, color, hatch) in enumerate(series):
-        a3.bar(x + (k - 1.5) * w, vals, w, color=color, hatch=hatch,
-               edgecolor="white", linewidth=0, zorder=3)
+        bars = a3.bar(x + (k - 1.5) * w, vals, w, color=color, hatch=hatch,
+                      edgecolor="white", linewidth=0, zorder=3)
+        # white hatching vanishes on the light fills (yellow, gray)
+        for b in bars:
+            b.set_hatchcolor(theme.ink_on(b.get_facecolor()))
     a3.axvline(2.5, color=theme.MUTED, lw=0.6, ls=(0, (3, 2)), zorder=1)
     a3.set_xticks(x)
     a3.set_xticklabels(labels)
