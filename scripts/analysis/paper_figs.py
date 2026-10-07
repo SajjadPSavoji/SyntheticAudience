@@ -657,7 +657,9 @@ def fig_breadth_category() -> str:
 
     # (right) difficulty by content category, hardest at the top
     items = sorted(cats.items(), key=lambda kv: kv[1]["group_mae"])
-    labels = [k for k, _ in items]
+    # PARA's raw category keys, written out as words for the tick labels
+    names = {"nightScene": "night scene", "stilllife": "still life"}
+    labels = [names.get(k, k) for k, _ in items]
     vals = [v["group_mae"] for _, v in items]
     EASY, MOD, HARD = theme.SEV3
     t_easy, t_hard = 0.060, 0.075
@@ -753,41 +755,44 @@ def fig_autopolish(logs_dir: str, drift_cap: float = 0.78, labels: dict | None =
 # --------------------------------------------------------------------------
 # Figure 4 — tight qualitative grid
 # --------------------------------------------------------------------------
-def _notes_column(fig, axes, row_ids, notes: dict, title: str, wrap: int | None = None) -> None:
+def _notes_column(fig, axes, row_ids, notes: dict, title: str, wrap: int | None = None,
+                  label_pad: float = 1.6) -> None:
     """Fill the right-most axes column with a short text note per row, set off from the
-    image grid by a dashed rule. ``row_ids`` gives the image id of each row. The wrap
-    width is derived from the column's printed width unless given."""
+    image grid by a dashed rule, with a short rule under the header that lines up with
+    the top edge of the first row of photos. ``row_ids`` gives the image id of each row.
+    Photo axes are anchored to the top of their cells, so positions are read after the
+    aspect is applied."""
     import textwrap
     from matplotlib.lines import Line2D as _L
+    for ax in axes[:, :-1].ravel():
+        ax.apply_aspect()
     if wrap is None:
         col_in = axes[0, -1].get_position().width * fig.get_figwidth()
         wrap = max(12, int(col_in * 0.84 * 72 / (5.6 * 0.52)))   # ~0.52 em per glyph
+    note = axes[0, -1].get_position()
+    x_text = note.x0 + 0.14 * note.width
     for r, iid in enumerate(row_ids):
-        ax = axes[r, -1]
-        ax.axis("off")
-        ax.text(0.14, 0.5, textwrap.fill(notes.get(iid, ""), wrap), transform=ax.transAxes,
-                ha="left", va="center", fontsize=5.6, color=theme.INK, linespacing=1.25)
-    axes[0, -1].set_title(title, fontsize=6, pad=1.6, fontweight="bold", color=theme.INK)
-    left, right = axes[0, -2].get_position(), axes[0, -1].get_position()
-    # a clear gap on both sides: the rule sits inside the notes column, left of the text
-    x = right.x0 + 0.06 * (right.x1 - right.x0)
-    y0 = axes[-1, -1].get_position().y0
-    y1 = axes[0, -1].get_position().y1 + 0.03
-    fig.add_artist(_L([x, x], [y0, y1], transform=fig.transFigure, ls=(0, (3, 2)),
-                      lw=0.7, color="black"))
-    # a short rule under the header, inset on both sides so it touches neither the
-    # dashed separator nor the figure edge
-    top = axes[0, -1].get_position().y1 - 0.014   # small gap below the header text
-    w = right.x1 - right.x0
-    fig.add_artist(_L([right.x0 + 0.20 * w, right.x1 - 0.12 * w], [top, top],
+        axes[r, -1].axis("off")
+        img = axes[r, 0].get_position()
+        fig.text(x_text, (img.y0 + img.y1) / 2, textwrap.fill(notes.get(iid, ""), wrap),
+                 ha="left", va="center", fontsize=5.6, color=theme.INK, linespacing=1.25)
+    top = axes[0, 0].get_position().y1                    # top edge of the first photos
+    bottom = min(axes[-1, c].get_position().y0 for c in range(axes.shape[1] - 1))
+    head = top + label_pad / 72 / fig.get_figheight()       # header sits where the labels do
+    fig.text(note.x0 + 0.5 * note.width + 0.04 * note.width, head, title, ha="center",
+             va="bottom", fontsize=6, fontweight="bold", color=theme.INK)
+    x = note.x0 + 0.06 * note.width
+    fig.add_artist(_L([x, x], [bottom, head + 0.045], transform=fig.transFigure,
+                      ls=(0, (3, 2)), lw=0.7, color="black"))
+    fig.add_artist(_L([note.x0 + 0.20 * note.width, note.x1 - 0.12 * note.width], [top, top],
                       transform=fig.transFigure, lw=0.6, color="black"))
-
 
 def fig_qualitative(logs_dir: str, edits_dir: str, n_show: int = 2, skip: int = 0,
                     row_offset: int = 1, out_name: str = "pf_qualitative.png",
                     last: str | None = None, notes: dict | None = None,
                     note_title: str = "Explanation", note_w: float = 1.25,
-                    label_pad: float = 1.6, hspace: float = 0.10) -> str:
+                    label_pad: float = 1.6, row_gap: float = 0.13, hspace: float = 0.10,
+                    society_top: bool = False, reorder: bool = True) -> str:
     data = {c: load_c4(c, logs_dir) for c in CONDITIONS}
     present = [c for c in CONDITIONS if len(data[c])]
     finals = {c: _final_best(data[c]) for c in present}
@@ -804,6 +809,10 @@ def fig_qualitative(logs_dir: str, edits_dir: str, n_show: int = 2, skip: int = 
                 return False
             if _cell_path(edits_dir, c, iid, finals[c].loc[iid]["best_path"]) is None:
                 return False
+        if society_top:   # only rows where AutoPolish has the (tied) best score
+            best = max(finals[c].loc[iid]["best_obj"] for c in present)
+            if finals["society"].loc[iid]["best_obj"] < best - 1e-9:
+                return False
         return True
 
     # Gather far enough down the ranking to apply the shared row-order override,
@@ -816,7 +825,7 @@ def fig_qualitative(logs_dir: str, edits_dir: str, n_show: int = 2, skip: int = 
             picks.append(iid)
         if len(picks) >= n_gather:
             break
-    picks = apply_row_order(picks)[row_offset:row_offset + n_show]
+    picks = (apply_row_order(picks) if reorder else picks)[row_offset:row_offset + n_show]
 
     start = (data["society"][data["society"]["step"] == 0]
              .set_index("image_id")["best_obj"].to_dict())
@@ -837,7 +846,7 @@ def fig_qualitative(logs_dir: str, edits_dir: str, n_show: int = 2, skip: int = 
     # Each row is sized to its OWN aspect ratio. Using max(aspects) for every
     # row is fine while all rows are landscape, but one portrait row then
     # stretches the whole grid and leaves a dead band under every other row.
-    row_hs = [cell_w * a + 0.13 for a in aspects]   # + label line
+    row_hs = [cell_w * a + row_gap for a in aspects]   # + label line
     # Drawn at the final printed width so the per-cell labels stay legible.
     ncols = len(cols) + (1 if notes else 0)
     wr = [1.0] * len(cols) + ([note_w] if notes else [])
@@ -861,6 +870,7 @@ def fig_qualitative(logs_dir: str, edits_dir: str, n_show: int = 2, skip: int = 
                 name = QLABELS[col]
             if path and os.path.exists(path):
                 ax.imshow(Image.open(path).convert("RGB"))
+                ax.set_anchor("N")
             # every row carries the full label: condition name and score. Our
             # method is marked with weight rather than hue, so the figure keeps
             # working in grayscale and for colorblind readers.
@@ -870,7 +880,7 @@ def fig_qualitative(logs_dir: str, edits_dir: str, n_show: int = 2, skip: int = 
                          color=theme.INK)
     fig.subplots_adjust(left=0, right=1, top=0.94, bottom=0)
     if notes:
-        _notes_column(fig, axes, picks, notes, note_title)
+        _notes_column(fig, axes, picks, notes, note_title, label_pad=label_pad)
     p = os.path.join(FIGS, out_name)
     fig.savefig(p, dpi=DPI, bbox_inches="tight")
     plt.close(fig)
@@ -888,7 +898,7 @@ PROG_ROWS = (2, 6)
 def fig_progression(logs_dir: str, edits_dir: str,
                     out_name: str = "pf_progression.png", notes: dict | None = None,
                     note_title: str = "Explanation", note_w: float = 1.25,
-                    label_pad: float = 1.6, hspace: float = 0.16) -> str:
+                    label_pad: float = 1.6, row_gap: float = 0.13, hspace: float = 0.16) -> str:
     df = load_c4("society", logs_dir)
     scored = []
     for iid, g in df.groupby("image_id"):
@@ -914,7 +924,7 @@ def fig_progression(logs_dir: str, edits_dir: str,
         with Image.open(cells[0][0]) as im:
             aspects.append(im.height / im.width)
     # Each row is sized to its OWN aspect ratio -- see fig_qualitative.
-    row_hs = [cell_w * a + 0.13 for a in aspects]   # + label line
+    row_hs = [cell_w * a + row_gap for a in aspects]   # + label line
     # drawn at the printed width so the per-cell labels stay legible
     ncols = len(CHECKPOINTS) + (1 if notes else 0)
     wr = [1.0] * len(CHECKPOINTS) + ([note_w] if notes else [])
@@ -929,12 +939,14 @@ def fig_progression(logs_dir: str, edits_dir: str,
             ax.axis("off")
             if path and os.path.exists(path):
                 ax.imshow(Image.open(path).convert("RGB"))
+                ax.set_anchor("N")
             # every row carries the full label, as in fig_qualitative
             ax.set_title(f"{colnames[c]}  {score:.2f}", fontsize=6, pad=label_pad,
                          color=theme.INK)
     fig.subplots_adjust(left=0, right=1, top=0.94, bottom=0)
     if notes:
-        _notes_column(fig, axes, [iid for _, _, iid, _ in picks], notes, note_title)
+        _notes_column(fig, axes, [iid for _, _, iid, _ in picks], notes, note_title,
+                      label_pad=label_pad)
     p = os.path.join(FIGS, out_name)
     fig.savefig(p, dpi=DPI, bbox_inches="tight")
     plt.close(fig)
@@ -977,6 +989,96 @@ def fig_accv_examples(logs_dir: str, edits_dir: str) -> list:
     qual = fig_qualitative(logs_dir, edits_dir, n_show=3, out_name="pf_qualitative_accv.png",
                            last="society", notes=ACCV_QUAL_NOTES, label_pad=3.2, hspace=0.18)
     return [prog, qual]
+
+
+# Appendix A8/A9 grids in the same format (AutoPolish last, explanation column).
+ACCV_APPX_PROG_ROWS = tuple(range(9))
+ACCV_APPX_PROG_NOTES = {
+    **ACCV_PROG_NOTES,
+    "para__iaa_pub18208_.jpg": "Colors become slightly more vivid, a small change with a "
+                               "small gain.",
+    "eva__489134": "A Milky Way and bright stars appear over the road, turning the plain "
+                   "night sky into the subject.",
+    "para__iaa_pub10458_.jpg": "The food is brightened and its colors made richer, so the "
+                               "plate looks fresher.",
+    "eva__55012": "The sky is made brighter and bluer, so the dark structure stands out "
+                  "more against it.",
+    "eva__412312": "Haze is cleared from the scene, so the lights and traffic look "
+                   "sharper.",
+    "para__iaa_pub9304_.jpg": "The crystals are lit more evenly and brightened, so their "
+                              "detail is easier to see.",
+}
+ACCV_APPX_QUAL_NOTES = {
+    **ACCV_QUAL_NOTES,
+    "eva__18116": "The green bench is turned bright red, giving the gray wall a clear "
+                  "point of focus.",
+    "eva__489134": "A bright Milky Way and many stars fill the empty sky, making it the "
+                   "subject of the photo.",
+    "eva__742534": "The steel ovens behind the chef become a bright kitchen, giving the "
+                   "photo a warmer setting.",
+    "eva__55012": "The sky is made brighter and bluer, so the dark structure stands out "
+                  "against it.",
+    "eva__444303": "A truck is added to the empty snowy courtyard, giving the scene scale "
+                   "and a point of interest.",
+    "eva__449": "The black night sky becomes a pale background, so the tower's structure "
+                "is easier to see.",
+    "eva__126207": "Keeps the black-and-white look but deepens the contrast between the "
+                   "building and the sky.",
+    "para__iaa_pub29955_.jpg": "The sky gets a deeper blue and a brighter band of sunset "
+                               "color along the horizon.",
+    "eva__802648": "The busy green background becomes plain gray, so attention stays on "
+                   "the face.",
+    "para__iaa_pub21242_.jpg": "Softer light and slightly richer colors make the food look "
+                               "a little more appetizing.",
+}
+
+
+def _fit_aspect(render, target: float, lo: float = 0.02, hi: float = 0.9) -> str:
+    """Binary-search the per-row gap (inches) so the saved PNG's height/width matches
+    ``target``: the figure then fills a full LNCS page next to its caption. Only the
+    whitespace between rows changes; the photos keep their size."""
+    def aspect(gap):
+        path = render(gap)
+        with Image.open(path) as im:
+            return path, im.height / im.width
+    path, a = aspect(lo)
+    if a >= target:
+        return path
+    for _ in range(14):
+        mid = (lo + hi) / 2
+        path, a = aspect(mid)
+        if abs(a - target) < 0.002:
+            break
+        lo, hi = (mid, hi) if a < target else (lo, mid)
+    return path
+
+
+# Full page in llncs: 12.2 x 19.3 cm, minus a two-line caption and its skip.
+ACCV_FULLPAGE_ASPECT = (19.3 - 1.28) / 12.2
+
+
+def fig_accv_appendix_examples(logs_dir: str, edits_dir: str) -> list:
+    """Appendix grids: the top-five comparison, further rows where AutoPolish scores
+    best, and the loop over time. The last two are sized to fill a page exactly."""
+    global PROG_ROWS
+    kw = dict(label_pad=3.2, hspace=0.18, last="society")
+    top5 = fig_qualitative(logs_dir, edits_dir, n_show=5, row_offset=0,
+                           out_name="ax_qualitative_top5_accv.png",
+                           notes=ACCV_APPX_QUAL_NOTES, **kw)
+    more = _fit_aspect(lambda gap: fig_qualitative(
+        logs_dir, edits_dir, n_show=8, skip=5, row_offset=0, society_top=True,
+        reorder=False, out_name="ax_qualitative_more_accv.png",
+        notes=ACCV_APPX_QUAL_NOTES, row_gap=gap, **kw), ACCV_FULLPAGE_ASPECT)
+    keep = PROG_ROWS
+    PROG_ROWS = ACCV_APPX_PROG_ROWS
+    try:
+        prog = _fit_aspect(lambda gap: fig_progression(
+            logs_dir, edits_dir, out_name="ax_progression_accv.png",
+            notes=ACCV_APPX_PROG_NOTES, label_pad=3.2, hspace=0.24, row_gap=gap),
+            ACCV_FULLPAGE_ASPECT)
+    finally:
+        PROG_ROWS = keep
+    return [top5, more, prog]
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Composite main-text paper figures.")
