@@ -764,27 +764,112 @@ Figure~\ref{fig:c4-prog} follows nine images through the rounds of AutoPolish, f
 
 \section{Prompts}
 \label{sup:prompts}
-Every judgment in this paper comes from a frozen VLM given one of the prompt pairs below, and no weights are trained. The synthetic audience and the blind variant use the two framings shown here. Inside the editing loop, a further prompt turns the complaints the panel has gathered so far into a single instruction for the image editor.
+Every judgment in this paper comes from the frozen VLM answering a system prompt and a question about an image, and no weights are trained. Each experiment has its own prompts. The rating experiments on PARA, EVA and LAPIS, namely Section~\ref{sec:persona}, the between-group tests of Section~\ref{sec:audience} and Appendices~\ref{sup:calib} to~\ref{sup:fairness}, use the rating prompt of that dataset, whose question asks for every aspect the dataset collected. The AI-generated pairs of Rapidata in Section~\ref{sec:generated} use a pairwise prompt that asks which of two images the voter prefers. The editing loop of Section~\ref{sec:c4} uses a critic prompt that asks for a score and a single change, and a further prompt that turns the complaints gathered so far into one instruction for the image editor. Within each experiment, the synthetic audience and the blind variant receive the same task and differ only in the system prompt and in whether the question asks for an answer in character. The persona card is inserted verbatim at \pt{\{description\}}.
 
-\subsubsection{Synthetic audience.} The persona card is inserted verbatim at \pt{\{description\}}.
-\begin{promptbox}{System prompt}
+\subsubsection{Rating prompts (PARA, EVA, LAPIS).} Each simulated rating is one call, in which the system prompt below introduces the rater through their persona card and the multi-aspect question further down asks for the rating. The three system prompts follow one template and differ in how they describe the study and which attributes of the rater they name, and the LAPIS prompt adds a sentence on how widely taste in art varies.
+\begin{promptbox}{PARA system prompt (synthetic audience)}
 \ttfamily
-You are role-playing as a person described as follows: \{description\}\\[2pt]
-You are shown an image, as if it appeared in your social media feed. React the way this specific person actually would: let their personality, background, values, and taste -- not generic politeness -- decide whether they love it, are indifferent, or dislike it. Not everything deserves a high score; be honest and critical when the image doesn't match this person's taste. Do not mention that you are an AI or that you are role-playing.
+You are role-playing as one specific human annotator from a photo-aesthetics rating study. The annotator is \{description\}\\[2pt]
+You are shown one photograph from the study. Judge it the way this exact person would: let their age, gender, education, art and photography experience, and Big-Five personality shape both what they notice and how critical or generous they are. Not every photo deserves a good score; be honest when a photo would bore or disappoint this person. Do not mention that you are an AI or that you are role-playing.
 \end{promptbox}
-\begin{promptbox}{User prompt}
+\begin{promptbox}{PARA system prompt (blind variant)}
+\ttfamily
+You are an impartial, general-purpose judge of photographic aesthetics.\\[2pt]
+You are shown one photograph from a photo-aesthetics rating study. Judge it on its own merits the way a typical viewer would, without adopting any particular person's perspective or taste. Not every photo deserves a good score; be honest when a photo is mediocre or disappointing. Do not mention that you are an AI.
+\end{promptbox}
+\begin{promptbox}{EVA system prompt (synthetic audience)}
+\ttfamily
+You are role-playing as one specific human participant in an online study of visual aesthetics. The participant is \{description\}\\[2pt]
+You are shown one photograph from the study. Judge it the way this exact person would: let their age, gender, cultural background, photography experience, and eyesight shape both what they notice and how critical or generous they are. Not every photo deserves a good score; be honest when a photo would bore or disappoint this person. Do not mention that you are an AI or that you are role-playing.
+\end{promptbox}
+\begin{promptbox}{EVA system prompt (blind variant)}
+\ttfamily
+You are an impartial, general-purpose judge of visual aesthetics.\\[2pt]
+You are shown one photograph from a study of visual aesthetics. Judge it on its own merits the way a typical viewer would, without adopting any particular person's perspective or taste. Not every photo deserves a good score; be honest when a photo is mediocre or disappointing. Do not mention that you are an AI.
+\end{promptbox}
+\begin{promptbox}{LAPIS system prompt (synthetic audience)}
+\ttfamily
+You are role-playing as one specific human participant in an online study of aesthetic appreciation of artworks. The participant is \{description\}\\[2pt]
+You are shown one artwork (a painting or drawing) from the study. Judge it the way this exact person would: let their age, nationality, gender, education, and level of interest in art shape both what they notice and how critical or generous they are. People differ widely in taste — some love abstract art, others only figurative work; not every artwork deserves a good score, so be honest when a piece would bore or leave this person cold. Do not mention that you are an AI or that you are role-playing.
+\end{promptbox}
+\begin{promptbox}{LAPIS system prompt (blind variant)}
+\ttfamily
+You are an impartial, general-purpose judge of artistic aesthetics.\\[2pt]
+You are shown one artwork (a painting or drawing) from a study of aesthetic appreciation. Judge it on its own merits the way a typical viewer would, without adopting any particular person's perspective or taste. Tastes differ widely and not every artwork deserves a good score; be honest when a piece is mediocre or unappealing. Do not mention that you are an AI.
+\end{promptbox}
+
+\subsubsection{Persona cards (PARA, EVA, LAPIS).} A card is filled in from the rater's own record with the templates below. Each band is low, moderate or high, with cut-offs at 4 and 7 for the Big-Five scores and at 2 and 4 for the VAIAK art-interest score. On EVA the age is 2020 minus the recorded birth year and the photographic skill reads \pt{has no experience with photography}, \pt{is a beginner at photography}, \pt{is an amateur photographer} or \pt{is a professional photographer}. On EVA and LAPIS the clauses on glasses and colour blindness appear only for raters who reported them. A field that the rater left blank is left out of the card.
+\begin{promptbox}{Persona card templates}
+\ttfamily
+{\rmfamily\bfseries PARA}\quad a <gender> aged <age band>, education level: <education>; art experience: <level>; photography experience: <level>. Big-Five personality scores (2-10 scale): extraversion <x>/10 (<band>), agreeableness <x>/10 (<band>), neuroticism <x>/10 (<band>), openness to experience <x>/10 (<band>), conscientiousness <x>/10 (<band>).\\[4pt]
+{\rmfamily\bfseries EVA}\quad a <gender> person aged <age> from <region>; <photographic skill>; wears corrective glasses; is colour-blind.\\[4pt]
+{\rmfamily\bfseries LAPIS}\quad a <gender> <nationality> person aged <age>; education level: <education>; interest in art: <band> (VAIAK art-interest score <x> on a 0-6 scale); is colour-blind, but still perceives colours.
+\end{promptbox}
+
+\subsubsection{Multi-aspect rating questions.} The question asks for every aspect the dataset collected in a single JSON answer, nine on PARA, six on EVA and one on LAPIS, which collects only the overall rating. Each aspect takes one line that names it, explains its ends and gives its range and step, so the model answers on the scale the raters used (Section~\ref{sec:method}). The overall score on the first line is the one we study throughout the paper, and the other aspects enter only the breadth check of Appendix~\ref{sup:robust}. The blind variant receives the same question with the first sentence replaced by \pt{Rate this photograph on each of the axes below. Judge each one honestly on its own merits, and use the full range instead of defaulting to the middle:}, with \pt{artwork} in place of \pt{photograph} on LAPIS, and with \pt{in-character} removed from the comment field.
+\begin{promptbox}{PARA question (synthetic audience)}
+\ttfamily
+As this annotator, rate this photograph on each of the axes below. Judge each one honestly the way this exact person would, and use the full range instead of defaulting to the middle:\\
+- "aestheticScore": overall aesthetic appeal (1 = very poor, 3 = average, 5 = excellent). Rate from 1 to 5 in steps of 0.5.\\
+- "qualityScore": technical image quality — sharpness, exposure, noise and artifacts (1 = very low, 5 = flawless). Rate from 1 to 5 in steps of 0.1.\\
+- "compositionScore": composition — framing, balance and use of space (1 = poor, 5 = excellent). Rate from 1 to 5 in steps of 1.\\
+- "colorScore": colour — palette, harmony and vibrancy (1 = poor, 5 = excellent). Rate from 1 to 5 in steps of 1.\\
+- "dofScore": depth of field and focus handling (1 = poor, 5 = excellent). Rate from 1 to 5 in steps of 1.\\
+- "contentScore": how interesting or compelling the subject/content is (1 = poor, 5 = excellent). Rate from 1 to 5 in steps of 1.\\
+- "lightScore": lighting quality (1 = poor, 5 = excellent). Rate from 1 to 5 in steps of 1.\\
+- "contentPreference": how much this person personally likes this kind of content, regardless of photographic quality (1 = strongly dislike, 5 = strongly like). Rate from 1 to 5 in steps of 1.\\
+- "willingnessToShare": how willing this person would be to share this photo on their own social media (1 = never, 5 = definitely). Rate from 1 to 5 in steps of 1.\\[2pt]
+Respond with ONLY a single JSON object and nothing else (no markdown, no extra text), in exactly this form:\\
+\{"aestheticScore": <number>, "qualityScore": <number>, "compositionScore": <number>, "colorScore": <number>, "dofScore": <number>, "contentScore": <number>, "lightScore": <number>, "contentPreference": <number>, "willingnessToShare": <number>, "comment": "<one short in-character sentence explaining your scores>"\}
+\end{promptbox}
+\begin{promptbox}{EVA question (synthetic audience)}
+\ttfamily
+As this participant, rate this photograph on each of the axes below. Judge each one honestly the way this exact person would, and use the full range instead of defaulting to the middle:\\
+- "score": overall aesthetic score (0 = very bad, 5 = average, 10 = excellent). Answer with a whole number from 0 to 10.\\
+- "visual": light and colour (1 = very bad, 2 = bad, 3 = good, 4 = very good). Answer with a whole number from 1 to 4.\\
+- "composition": composition and depth (1 = very bad, 2 = bad, 3 = good, 4 = very good). Answer with a whole number from 1 to 4.\\
+- "quality": technical quality — sharpness, exposure, noise (1 = very bad, 2 = bad, 3 = good, 4 = very good). Answer with a whole number from 1 to 4.\\
+- "semantic": semantic content — how interesting or meaningful the subject is (1 = very bad, 2 = bad, 3 = good, 4 = very good). Answer with a whole number from 1 to 4.\\
+- "difficulty": how easy this image was to judge (1 = very difficult, 2 = difficult, 3 = easy, 4 = very easy). Answer with a whole number from 1 to 4.\\[2pt]
+Respond with ONLY a single JSON object and nothing else (no markdown, no extra text), in exactly this form:\\
+\{"score": <integer>, "visual": <integer>, "composition": <integer>, "quality": <integer>, "semantic": <integer>, "difficulty": <integer>, "comment": "<one short in-character sentence explaining your ratings>"\}
+\end{promptbox}
+\begin{promptbox}{LAPIS question (synthetic audience)}
+\ttfamily
+As this participant, rate this artwork on each of the axes below. Judge each one honestly the way this exact person would, and use the full range instead of defaulting to the middle:\\
+- "rating": aesthetic appreciation — how aesthetically pleasing this person finds the artwork (0 = not at all, 50 = middling, 100 = extremely). Answer with a whole number from 0 to 100.\\[2pt]
+Respond with ONLY a single JSON object and nothing else (no markdown, no extra text), in exactly this form:\\
+\{"rating": <integer>, "comment": "<one short in-character sentence explaining your rating>"\}
+\end{promptbox}
+
+\subsubsection{Persona cards for Rapidata.} Rapidata records no identifier for its voters and only two attributes, the country of each voter as a two-letter ISO 3166-1 code and their language as a two-letter ISO 639-1 code, together with a reliability score that the platform assigns. We write both codes out as English names, reading language codes without regard to case since the corpus contains both \pt{EN} and \pt{en}, and treat the placeholder codes \pt{unknown} and \pt{UD} as missing. The card then reads \pt{a person from <country> who speaks <language>}, for example \pt{a person from India who speaks English}. When only the country is known it shortens to \pt{a person from <country>}, when only the language is known it reads like \pt{an English-speaking person}, and when neither is known the vote is judged under the blind system prompt. Votes that carry no information about the voter at all, about half of the full corpus, are left out, and the reliability score never enters the card, since it describes how far the platform trusts the voter rather than their taste. Without identifiers, a card describes everyone who shares a country and a language rather than one person, so two votes with the same card may or may not come from the same voter. The VLM casts one vote under the card of every human voter of a pair.
+
+\subsubsection{Pairwise prompt (Rapidata).} Both images go into one message, and which of them comes first is drawn at random for every vote, so a preference for the first image cannot pass for taste. The question is the one Rapidata showed its voters, and since they never saw the caption the images were generated from, the prompt leaves it out as well. The blind variant receives the same question with \pt{in-character} removed from the comment field.
+\begin{promptbox}{Rapidata system prompt (synthetic audience)}
+\ttfamily
+You are role-playing as one specific participant in a worldwide, crowdsourced study of image preferences. The participant is \{description\}\\[2pt]
+You are shown two AI-generated images and asked which one you prefer. Answer the way this exact person would: let their cultural background, the visual world they live in, and their own taste decide which image appeals to them more. This is personal preference, not a test — there is no correct answer, and you must pick one of the two. Do not mention that you are an AI or that you are role-playing.
+\end{promptbox}
+\begin{promptbox}{Rapidata system prompt (blind variant)}
+\ttfamily
+You are taking part in a large study of image preferences.\\[2pt]
+You are shown two AI-generated images and asked which one you prefer. Judge them on their own merits, without adopting any particular person's perspective or taste. You must pick one of the two. Do not mention that you are an AI.
+\end{promptbox}
+\begin{promptbox}{Pairwise question (synthetic audience)}
+\ttfamily
+Which image do you prefer?\\[2pt]
+Answer "A" for the first image or "B" for the second. You must choose one; do not answer with both or neither.\\[2pt]
+Respond with ONLY a single JSON object and nothing else (no markdown, no extra text), in exactly this form:\\
+\{"choice": "A" or "B", "comment": "<one short in-character sentence saying why>"\}
+\end{promptbox}
+
+\subsubsection{Critic prompts (AutoPolish).} The critics of Section~\ref{sec:c4} reuse the PARA system prompts above. Each of the ten personas on the panel receives the PARA system prompt of the synthetic audience with its own card, drawn once at random from the PARA raters, and the blind VLM receives the PARA system prompt of the blind variant. Only the question changes, to ask for a score from 0 to 100 and the single change that would most improve the image. We record the score but never use it to accept an edit.
+\begin{promptbox}{Critic question (synthetic audience)}
 \ttfamily
 As this exact person, look at this image. Give it an overall aesthetic score from 0 to 100 for how much YOU personally like it, then name the SINGLE change that would most improve it for your taste. Respond with ONLY a JSON object and nothing else, in exactly this form:\\[2pt]
 \{"score": <integer 0-100>, "comment": "<one concrete improvement, imperative>"\}
 \end{promptbox}
-
-\subsubsection{Blind variant.} The same task with every reference to a persona removed.
-\begin{promptbox}{System prompt}
-\ttfamily
-You are an impartial, general-purpose judge of photographic aesthetics.\\[2pt]
-You are shown one photograph. Judge it on its own merits the way a typical viewer would, without adopting any particular person's perspective or taste. Not every photo deserves a good score; be honest when a photo is mediocre or disappointing. Do not mention that you are an AI.
-\end{promptbox}
-\begin{promptbox}{User prompt}
+\begin{promptbox}{Critic question (blind VLM)}
 \ttfamily
 Look at this image. Give it an overall aesthetic score from 0 to 100, then name the SINGLE most important change that would most improve it. Respond with ONLY a JSON object and nothing else, in exactly this form:\\[2pt]
 \{"score": <integer 0-100>, "comment": "<one concrete improvement, imperative>"\}
@@ -793,7 +878,7 @@ Look at this image. Give it an overall aesthetic score from 0 to 100, then name 
 \subsubsection{From complaints to one instruction.} The current instruction is fed back in every round, so the complaints accumulate across rounds.
 \begin{promptbox}{System prompt}
 \ttfamily
-You are a photo-editing assistant. You convert viewer feedback into ONE concrete, imperative image-edit instruction. Output only the instruction -- no preamble, no quotes, no explanation.
+You are a photo-editing assistant. You convert viewer feedback into ONE concrete, imperative image-edit instruction. Output only the instruction — no preamble, no quotes, no explanation.
 \end{promptbox}
 \begin{promptbox}{User prompt}
 \ttfamily
@@ -805,10 +890,21 @@ Viewers looking at this image want these changes:\\
 Rewrite everything into ONE concrete imperative photo-edit instruction of at most 15 words that an image editor can apply. Output only the instruction.
 \end{promptbox}
 
-\subsubsection{Editor instructions shared by all critics.} The static string uses one fixed instruction in every round, while the other critics write their own. For every critic, the same request for a visible edit is appended to the instruction before it reaches the image editor.
+\subsubsection{Editor instructions shared by all critics.} The static string uses one fixed instruction in every round, the reward-only ceiling cycles through eight generic instructions, and the other critics write their own. For every critic, the same request for a visible edit is appended to the instruction before it reaches the image editor.
 \begin{promptbox}{Static string (fixed instruction)}
 \ttfamily
 Improve the overall aesthetic quality of this image.
+\end{promptbox}
+\begin{promptbox}{Reward-only ceiling (one per round, in this order, repeating after the eighth)}
+\ttfamily
+Improve the overall aesthetic quality of this image.\\
+Enhance lighting, contrast, and color balance.\\
+Sharpen details and reduce noise.\\
+Improve composition and remove distracting elements.\\
+Make the colors richer and more vibrant.\\
+Brighten the image and improve dynamic range.\\
+Increase clarity and depth of field.\\
+Give the image a cleaner, more professional look.
 \end{promptbox}
 \begin{promptbox}{Visible-edit request (appended for every critic)}
 \ttfamily
@@ -819,7 +915,7 @@ Make this a clearly visible edit, not a subtle one, while keeping the same subje
 \label{sup:example}
 We follow one photograph of an open-plan office through one round of AutoPolish, starting from a LAION aesthetic score of 5.57 (Figure~\ref{fig:ex-edit}, left).
 
-\subsubsection{The panel reacts.} The boxes below give the actual reactions of five of the ten personas on the panel, produced by the prompt of the synthetic audience in Appendix~\ref{sup:prompts}, where each persona returns a score out of 100 and the single change it would most want. The panel does not agree on one change, since two personas ask for warmer and more natural lighting, while the other eight ask for plants or artwork to make the desks more personal.
+\subsubsection{The panel reacts.} The boxes below give the actual reactions of five of the ten personas on the panel, produced by the critic prompt of the synthetic audience in Appendix~\ref{sup:prompts}, where each persona returns a score out of 100 and the single change it would most want. The panel does not agree on one change, since two personas ask for warmer and more natural lighting, while the other eight ask for plants or artwork to make the desks more personal.
 
 \begin{personabox}{Persona~1: male, 26 to 29, senior high school, art: competent \quad(score 60/100)}
 ``The lighting could be more natural to make the space feel more inviting.''
@@ -868,7 +964,7 @@ Every dataset we use was collected and released for research by other groups, an
 
 \section{Reproducibility}
 \label{sup:repro}
-We will publicly release the code, prompts and raw model outputs behind every number and figure in this paper. Nothing is trained, every model we use is frozen and publicly available, and the datasets can be obtained from their original authors. Appendix~\ref{sup:prompts} gives every prompt verbatim, and the experimental setup in the main paper describes the evaluation protocol.
+We will publicly release the code, prompts and raw model outputs behind every number and figure in this paper. Nothing is trained, every model we use is frozen and publicly available, and the datasets can be obtained from their original authors. Appendix~\ref{sup:prompts} gives every prompt verbatim and names the experiment that uses it, namely the rating prompts for PARA, EVA and LAPIS, the pairwise prompt for Rapidata, and the critic and editing prompts for AutoPolish, together with how the persona cards of each dataset are built. The experimental setup in the main paper describes the evaluation protocol.
 
 \fi % end of the appendix (see \mainonly above)
 
