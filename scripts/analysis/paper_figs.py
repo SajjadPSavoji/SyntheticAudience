@@ -702,7 +702,7 @@ def fig_breadth_category() -> str:
 # --------------------------------------------------------------------------
 def fig_autopolish(logs_dir: str, drift_cap: float = 0.78, labels: dict | None = None,
                    out_name: str = "pf_autopolish.png", pad_inches: float = 0.1) -> str:
-    labels = labels or C4LABELS   # per-venue legend names (ACCV says "ceiling")
+    labels = labels or C4LABELS   # per-venue legend names (ACCV: plain "reward-only")
     data = {c: load_c4(c, logs_dir) for c in CONDITIONS}
     present = [c for c in CONDITIONS if len(data[c])]
 
@@ -1134,7 +1134,7 @@ if __name__ == "__main__":
     print("wrote", fig_bias_wide())
     print("wrote", fig_breadth_category())
     print("wrote", fig_autopolish(logs))
-    print("wrote", fig_autopolish(logs, labels={**C4LABELS, "reward_only": "reward-only (ceiling)"},
+    print("wrote", fig_autopolish(logs, labels={**C4LABELS, "reward_only": "reward-only"},
                                   out_name="pf_autopolish_accv.png", pad_inches=0.02))
     print("wrote", fig_qualitative(logs, edits, n_show=args.n_show,
                                    out_name="pf_qualitative%s.png" % args.suffix))
